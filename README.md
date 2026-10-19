@@ -11,16 +11,27 @@ Upstream source snapshot: `985f0c2` (existing local checkout). Original licensin
 
 ## Install this version
 
-Download the compiled archive from this repository's Releases. This is an upgrade
-for an existing working BO3MacFix installation; it does not include game assets.
-Quit BO3, unpack it, and with Python 3 installed run `install-mawlicious.command`, passing your BO3 Steam
-folder as its argument (or follow the script's usage). It copies the existing mod
-assets to `BO3MacFix-mawlicious`, replaces its native binaries, and backs up the
-active launcher. Launch BO3 normally through Steam afterward.
+1. Download and extract the compiled archive from [Releases](https://github.com/mawlicious/BO3MacFix-mawlicious/releases).
+2. Quit Black Ops III. Copy the complete `BO3MacFix-mawlicious` folder beside `CoDBlkOps3.app` in the game's Steam folder.
+3. Open that folder and double-click `Install.command`.
+4. Launch the game normally through Steam.
 
-The in-game label and window title show `BO3MacFix-mawlicious`. Logs are in
-`BO3MacFix-mawlicious/logs`. The old folder is retained for rollback. Wine and its
-prefix are not copied to the new mod directory and are not required.
+This is a complete standalone distribution. You do not need the original
+BO3MacFix, Wine, Python, Xcode, or another download. Apple Silicon Macs need
+Rosetta because the game and mod use Intel machine code. If macOS blocks the
+installer, use Finder's **Open** action and approve it in Privacy & Security.
+
+The window title and top-right in-game label show `BO3MacFix-mawlicious`.
+Each run saves a separate log in `BO3MacFix-mawlicious/logs`.
+
+To uninstall, double-click `Uninstall.command` while the game is closed. This
+restores the launcher backed up before the first install; if the original
+BO3MacFix's stock launcher backup is present, that is used as the baseline.
+Logs and mod files are retained. Reinstalling preserves the baseline backup.
+When updating, retain your `logs`, `Physics`, and optional `natives` folders.
+
+The required upstream zone and campaign navigation files are bundled in this
+repository and release. [ASSETS.md](ASSETS.md) records their origin and checksums.
 
 ## Build and test
 
