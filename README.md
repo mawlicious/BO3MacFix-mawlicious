@@ -24,6 +24,11 @@ installer, use Finder's **Open** action and approve it in Privacy & Security.
 The window title and top-right in-game label show `BO3MacFix-mawlicious`.
 Each run saves a separate log in `BO3MacFix-mawlicious/logs`.
 
+This version also repairs four uninitialized event-flag comparisons in the
+inspected One Barrier Roulette V2 script. The repair is restricted to that exact
+script revision; Workshop updates with different bytes are left intact.
+[Details and remaining map issues](docs/roulette-callbacks.md).
+
 To uninstall, double-click `Uninstall.command` while the game is closed. This
 restores the launcher backed up before the first install; if the original
 BO3MacFix's stock launcher backup is present, that is used as the baseline.
