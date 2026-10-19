@@ -53,6 +53,15 @@ with tempfile.TemporaryDirectory(prefix="bo3macfix-nav-") as directory:
     receipt.write_bytes(receipt.read_bytes()[:-1])
     assert not valid(), "Truncated receipt must be rejected"
     receipt.unlink()
+    # A mesh-only receipt cannot authorize an obsolete volume left on disk.
+    buffers = [b"", b"", b"", b"source mesh", b"", b"", b"", b"", b"", b""]
+    source = hashlib.sha256(b"".join(struct.pack("<I", len(b)) + b for b in buffers)).digest()
+    receipt.write_bytes(b"BO3NAV02" + b"\x00" + hashlib.sha256(mesh.read_bytes()).digest() + bytes(32) + source)
+    assert not valid(False), "Mesh-only receipt must reject leftover volume"
+    volume.unlink()
+    assert valid(False)
+    volume.write_bytes(b"existing volume")
+    receipt.unlink()
     print("Navigation cache receipt validation passed")
     if raw is None:
         sys.exit(0)
@@ -74,4 +83,21 @@ with tempfile.TemporaryDirectory(prefix="bo3macfix-nav-") as directory:
     assert subprocess.run([str(executable), "--check-clump", sys.argv[1], str(prefix)]).returncode == 0, "Conversion must commit a matching source-bound receipt"
     assert mesh.stat().st_size > 64 and volume.stat().st_size > 64
     assert not list(work.glob("*.??????"))
-    print("Native conversion and cache failure cleanup passed")
+    # Simulate an update that removes all volume buffers from the source map.
+    mesh_only_header = list(sizes)
+    mesh_only_header[0] = 0
+    mesh_only_header[7:11] = [0, 0, 0, 0]
+    mesh_only = work / "mesh-only.clump"
+    mesh_only.write_bytes(struct.pack("<12i", *mesh_only_header) + raw[48:48 + sum(sizes[1:7])])
+    # An unremovable stale volume must abort without issuing a new receipt.
+    volume.unlink()
+    volume.mkdir()
+    result = subprocess.run([str(executable), str(mesh_only), str(prefix)], capture_output=True)
+    assert result.returncode != 0
+    assert not receipt.exists()
+    volume.rmdir()
+    volume.write_bytes(b"obsolete volume")
+    subprocess.run([str(executable), str(mesh_only), str(prefix)], check=True)
+    assert not volume.exists(), "Mesh-only update must remove obsolete volume"
+    assert subprocess.run([str(executable), "--check-clump", str(mesh_only), str(prefix)]).returncode == 0
+    print("Native conversion, cache failure cleanup, and volume removal passed")

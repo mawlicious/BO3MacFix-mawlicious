@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 typedef struct { const void *data; int size; } NavBuffer;
 
@@ -110,9 +111,13 @@ static int cache_receipt(const char *prefix, const NavMeshData *mesh,
     char path[1040];
     if (snprintf(path, sizeof(path), "%s_navmesh.hkt", prefix) >= (int)sizeof(path) ||
         !file_digest(path, receipt + 9)) return 0;
-    if (volume &&
-        (snprintf(path, sizeof(path), "%s_navvolume.hkt", prefix) >= (int)sizeof(path) ||
-         !file_digest(path, receipt + 41))) return 0;
+    if (snprintf(path, sizeof(path), "%s_navvolume.hkt", prefix) >= (int)sizeof(path)) return 0;
+    if (volume) {
+        if (!file_digest(path, receipt + 41)) return 0;
+    } else {
+        struct stat st;
+        if (lstat(path, &st) == 0 || errno != ENOENT) return 0;
+    }
     return 1;
 }
 
@@ -183,6 +188,7 @@ int bo3_convert_nav(const NavMeshData *mesh, const NavVolumeData *volume,
     }
     /* Remove an old receipt before replacing either member of the pair. */
     if (unlink(receipt_path) && errno != ENOENT) goto rename_failed;
+    if (!volume && unlink(volume_path) && errno != ENOENT) goto rename_failed;
     if (rename(mesh_temp, mesh_path)) goto rename_failed;
     mesh_temp[0] = 0;
     unsigned char receipt[105];

@@ -84,3 +84,7 @@ The release excludes the historical compiled installer; use the upgrade command.
 
 The upgrade strips `com.apple.quarantine` from staged native binaries and the
 replacement launcher before activation; other extended attributes are preserved.
+
+When an update removes its navigation volume, committing the new mesh also
+removes the obsolete volume before publishing the receipt. Mesh-only receipts
+reject caches where a volume file has reappeared.
