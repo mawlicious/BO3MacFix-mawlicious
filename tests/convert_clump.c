@@ -6,6 +6,8 @@
 #include <string.h>
 
 int main(int argc, char **argv) {
+    if (argc == 4 && !strcmp(argv[1], "--check"))
+        return bo3_nav_cache_valid(argv[2], atoi(argv[3])) ? 0 : 1;
     if (argc != 3) { fprintf(stderr, "usage: convert_clump input.clump output-prefix\n"); return 2; }
     FILE *f = fopen(argv[1], "rb");
     if (!f) { perror("input"); return 1; }

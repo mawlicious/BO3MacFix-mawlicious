@@ -54,7 +54,7 @@ There are two big issues with Steam Workshop map loading in the current (v98, fr
 
 This build converts Windows Havok navigation packfiles directly inside the Mac game process.
 It no longer launches Wine or the Windows modding SDK. Converted maps are cached in
-`BO3MacFix-mawlicious/Physics`; existing cache files remain usable. The converter supports the captured
+`BO3MacFix-mawlicious/Physics`; legacy caches are regenerated once; only outputs with a matching native completion receipt are reused. The converter supports the captured
 Havok 2014.2 navigation class schemas and reports unsupported data instead of guessing its layout.
 The game and injected mod remain Intel binaries and use Rosetta on Apple Silicon.
 

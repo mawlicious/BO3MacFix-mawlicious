@@ -2,6 +2,7 @@
 
 Uses a local game capture; no proprietary data is checked in.
 """
+import hashlib
 import pathlib
 import struct
 import subprocess
@@ -9,7 +10,7 @@ import sys
 import tempfile
 
 root = pathlib.Path(__file__).resolve().parents[1]
-raw = pathlib.Path(sys.argv[1]).read_bytes()
+raw = pathlib.Path(sys.argv[1]).read_bytes() if len(sys.argv) > 1 else None
 with tempfile.TemporaryDirectory(prefix="bo3macfix-nav-") as directory:
     work = pathlib.Path(directory)
     executable = work / "convert-clump"
@@ -22,6 +23,35 @@ with tempfile.TemporaryDirectory(prefix="bo3macfix-nav-") as directory:
     volume = work / "cache_navvolume.hkt"
     mesh.write_bytes(b"existing mesh")
     volume.write_bytes(b"existing volume")
+    receipt = work / "cache_native.receipt"
+    def valid(has_volume=True):
+        return subprocess.run([str(executable), "--check", str(prefix), str(int(has_volume))]).returncode == 0
+    def sign():
+        receipt.write_bytes(b"BO3NAV01" + b"\x01" + hashlib.sha256(mesh.read_bytes()).digest()
+                            + hashlib.sha256(volume.read_bytes()).digest())
+    assert not valid(), "Legacy cache must be regenerated"
+    sign()
+    assert valid()
+    assert not valid(False), "Receipt must agree with volume requirement"
+    mesh.write_bytes(b"")
+    assert not valid(), "Empty mesh must be rejected"
+    mesh.write_bytes(b"existing mesh")
+    volume.unlink()
+    assert not valid(), "Missing volume must be rejected"
+    volume.write_bytes(b"existing volume")
+    assert valid()
+    mesh.write_bytes(b"truncated")
+    assert not valid(), "Modified mesh must be rejected"
+    mesh.write_bytes(b"existing mesh")
+    volume.write_bytes(b"corrupted")
+    assert not valid(), "Modified volume must be rejected"
+    volume.write_bytes(b"existing volume")
+    receipt.write_bytes(receipt.read_bytes()[:-1])
+    assert not valid(), "Truncated receipt must be rejected"
+    receipt.unlink()
+    print("Navigation cache receipt validation passed")
+    if raw is None:
+        sys.exit(0)
     sizes = struct.unpack_from("<12i", raw)
     assert sizes[0] == 1 and sizes[10] > 0, "Capture must include navvolume buffers"
     damaged = bytearray(raw)
@@ -37,6 +67,7 @@ with tempfile.TemporaryDirectory(prefix="bo3macfix-nav-") as directory:
         assert volume.read_bytes() == b"existing volume"
         assert not list(work.glob("*.??????")), "Temporary output leaked"
     subprocess.run([str(executable), sys.argv[1], str(prefix)], check=True)
+    assert valid(), "Conversion must commit a matching receipt"
     assert mesh.stat().st_size > 64 and volume.stat().st_size > 64
     assert not list(work.glob("*.??????"))
     print("Native conversion and cache failure cleanup passed")

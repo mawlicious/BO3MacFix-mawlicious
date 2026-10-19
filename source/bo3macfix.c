@@ -228,15 +228,14 @@ install_hook_name(HKAI_InitMapData, void, const char *mapname, char restart) {
         return;
     }
     printf("HKAI_InitMapData for %s\n", mapname);
-    char physicsPath[0x200], physicsAltPath[0x200];
-    if (snprintf(physicsPath, sizeof(physicsPath), "Physics/%s_navmesh.hkt", mapname) >= sizeof(physicsPath) ||
-        snprintf(physicsAltPath, sizeof(physicsAltPath), Macfix_Path "/Physics/%s_navmesh.hkt", mapname) >= sizeof(physicsAltPath)) {
+    char physicsPath[0x200];
+    if (snprintf(physicsPath, sizeof(physicsPath), "Physics/%s_navmesh.hkt", mapname) >= sizeof(physicsPath)) {
         Com_Error(__FILE__, __LINE__, 2, Error_Prefix "Navigation path is too long.");
         return;
     }
 
     bool shouldFixBees = strcmp(mapname, "cp_mi_cairo_infection2") == 0;
-    if ((access(physicsPath, F_OK) != 0 || shouldFixBees) && access(physicsAltPath, F_OK) != 0) {
+    if (access(physicsPath, F_OK) != 0 || shouldFixBees) {
         char asset_path[0x200];
         snprintf(asset_path, sizeof(asset_path), "maps/%s/%s_navmesh", GetGamemodeString(), mapname);
         NavMeshData *mesh = DB_FindXAssetHeader(ASSET_TYPE_NAVMESH, asset_path, 1, -1);
@@ -246,18 +245,20 @@ install_hook_name(HKAI_InitMapData, void, const char *mapname, char restart) {
         }
         snprintf(asset_path, sizeof(asset_path), "maps/%s/%s_navvolume", GetGamemodeString(), mapname);
         NavVolumeData *volume = DB_FindXAssetHeader(ASSET_TYPE_NAVVOLUME, asset_path, 0, -1);
-        if (mkdir(Macfix_Path "/Physics", 0755) != 0 && errno != EEXIST) {
-            Com_Error(__FILE__, __LINE__, 2, Error_Prefix "Could not create the navigation cache: %s", strerror(errno));
-            return;
-        }
         char output_prefix[0x200], error[256];
         snprintf(output_prefix, sizeof(output_prefix), Macfix_Path "/Physics/%s", mapname);
-        printf("[BO3MacFix-mawlicious] Converting navigation data for %s using native code\n", mapname);
-        if (!bo3_convert_nav(mesh, volume, output_prefix, error, sizeof(error))) {
-            Com_Error(__FILE__, __LINE__, 2, Error_Prefix "Native navigation conversion failed for '^2%s^7': %s", mapname, error);
-            return;
+        if (!bo3_nav_cache_valid(output_prefix, volume != NULL)) {
+            if (mkdir(Macfix_Path "/Physics", 0755) != 0 && errno != EEXIST) {
+                Com_Error(__FILE__, __LINE__, 2, Error_Prefix "Could not create the navigation cache: %s", strerror(errno));
+                return;
+            }
+            printf("[BO3MacFix-mawlicious] Converting navigation data for %s using native code\n", mapname);
+            if (!bo3_convert_nav(mesh, volume, output_prefix, error, sizeof(error))) {
+                Com_Error(__FILE__, __LINE__, 2, Error_Prefix "Native navigation conversion failed for '^2%s^7': %s", mapname, error);
+                return;
+            }
+            printf("[BO3MacFix-mawlicious] Native navigation conversion complete for %s\n", mapname);
         }
-        printf("[BO3MacFix-mawlicious] Native navigation conversion complete for %s\n", mapname);
     }
     orig_HKAI_InitMapData(mapname, restart);
 }

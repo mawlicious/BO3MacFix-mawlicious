@@ -74,3 +74,9 @@ Each launcher run writes `BO3MacFix-mawlicious/logs/session-*.log`. Logs include
 game output and may contain player identities and private diagnostics. The
 game may still overwrite its own console log. Friends-lobby changes are deferred;
 Steam friendship behavior is unchanged from the upstream snapshot.
+
+Cache reuse requires a versioned completion receipt with SHA-256 digests of the
+mesh and, when required, volume. It is committed after both output files and is
+invalidated before either existing output is replaced. Legacy caches without a
+receipt, missing volumes, and modified/truncated outputs are regenerated.
+The release excludes the historical compiled installer; use the upgrade command.

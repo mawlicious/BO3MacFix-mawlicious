@@ -8,3 +8,4 @@ clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource te
 python3 tests/test_havok_schema.py
 python3 tests/test_launcher.py
 python3 tests/test_install.py
+python3 tests/test_nav_cache.py

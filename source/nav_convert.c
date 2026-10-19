@@ -3,6 +3,7 @@
 #include "havok_convert.h"
 #include "havok_schema.h"
 #include <errno.h>
+#include <CommonCrypto/CommonDigest.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +52,51 @@ static int temp_file(const char *target, char *path, size_t path_size,
     return 0;
 }
 
+/* A receipt is created only after conversion commits both files. Legacy caches
+ * have no receipt and are regenerated rather than trusting a partial packfile.
+ * Hashes also detect subsequent truncation or corruption of either output. */
+static int file_digest(const char *path, unsigned char digest[CC_SHA256_DIGEST_LENGTH]) {
+    FILE *file = fopen(path, "rb");
+    if (!file) return 0;
+    CC_SHA256_CTX ctx;
+    CC_SHA256_Init(&ctx);
+    unsigned char buffer[16384];
+    size_t count, total = 0;
+    while ((count = fread(buffer, 1, sizeof(buffer), file)) != 0) {
+        CC_SHA256_Update(&ctx, buffer, (CC_LONG)count);
+        total += count;
+    }
+    int ok = !ferror(file) && total > 0;
+    fclose(file);
+    CC_SHA256_Final(digest, &ctx);
+    return ok;
+}
+
+static int cache_receipt(const char *prefix, int has_volume, unsigned char receipt[73]) {
+    memcpy(receipt, "BO3NAV01", 8);
+    receipt[8] = !!has_volume;
+    memset(receipt + 9, 0, 64);
+    char path[1040];
+    if (snprintf(path, sizeof(path), "%s_navmesh.hkt", prefix) >= (int)sizeof(path) ||
+        !file_digest(path, receipt + 9)) return 0;
+    if (has_volume &&
+        (snprintf(path, sizeof(path), "%s_navvolume.hkt", prefix) >= (int)sizeof(path) ||
+         !file_digest(path, receipt + 41))) return 0;
+    return 1;
+}
+
+int bo3_nav_cache_valid(const char *prefix, int has_volume) {
+    if (!prefix) return 0;
+    char path[1040];
+    if (snprintf(path, sizeof(path), "%s_native.receipt", prefix) >= (int)sizeof(path)) return 0;
+    FILE *file = fopen(path, "rb");
+    if (!file) return 0;
+    unsigned char saved[73], actual[73];
+    int ok = fread(saved, 1, sizeof(saved), file) == sizeof(saved) && fgetc(file) == EOF && !ferror(file);
+    fclose(file);
+    return ok && cache_receipt(prefix, has_volume, actual) && !memcmp(saved, actual, sizeof(saved));
+}
+
 int bo3_convert_nav(const NavMeshData *mesh, const NavVolumeData *volume,
                     const char *prefix, char *error, size_t error_size) {
     if (!mesh || !prefix || !error || !error_size) return 0;
@@ -71,6 +117,11 @@ int bo3_convert_nav(const NavMeshData *mesh, const NavVolumeData *volume,
     if (snprintf(mesh_path, sizeof(mesh_path), "%s_navmesh.hkt", prefix) >= (int)sizeof(mesh_path) ||
         snprintf(volume_path, sizeof(volume_path), "%s_navvolume.hkt", prefix) >= (int)sizeof(volume_path)) {
         snprintf(error, error_size, "Navigation output path is too long");
+        return 0;
+    }
+    char receipt_path[1040], receipt_temp[1060] = {0};
+    if (snprintf(receipt_path, sizeof(receipt_path), "%s_native.receipt", prefix) >= (int)sizeof(receipt_path)) {
+        snprintf(error, error_size, "Navigation receipt path is too long");
         return 0;
     }
     FILE *file = NULL;
@@ -95,16 +146,38 @@ int bo3_convert_nav(const NavMeshData *mesh, const NavVolumeData *volume,
             ok = 0;
         }
         if (!ok) goto cleanup;
+        if (unlink(receipt_path) && errno != ENOENT) goto rename_failed;
         if (rename(volume_temp, volume_path)) goto rename_failed;
         volume_temp[0] = 0;
     }
+    /* Remove an old receipt before replacing either member of the pair. */
+    if (unlink(receipt_path) && errno != ENOENT) goto rename_failed;
     if (rename(mesh_temp, mesh_path)) goto rename_failed;
     mesh_temp[0] = 0;
+    unsigned char receipt[73];
+    if (!cache_receipt(prefix, volume != NULL, receipt)) {
+        snprintf(error, error_size, "Reading committed navigation output for receipt");
+        ok = 0;
+        goto cleanup;
+    }
+    if (!temp_file(receipt_path, receipt_temp, sizeof(receipt_temp), &file, error, error_size)) {
+        ok = 0;
+        goto cleanup;
+    }
+    ok = fwrite(receipt, 1, sizeof(receipt), file) == sizeof(receipt);
+    if (fclose(file)) ok = 0;
+    if (!ok) {
+        snprintf(error, error_size, "Writing navigation completion receipt: %s", strerror(errno));
+        goto cleanup;
+    }
+    if (rename(receipt_temp, receipt_path)) goto rename_failed;
+    receipt_temp[0] = 0;
     goto cleanup;
 rename_failed:
     snprintf(error, error_size, "Committing navigation output: %s", strerror(errno));
     ok = 0;
 cleanup:
+    if (receipt_temp[0]) unlink(receipt_temp);
     if (mesh_temp[0]) unlink(mesh_temp);
     if (volume_temp[0]) unlink(volume_temp);
     return ok;
