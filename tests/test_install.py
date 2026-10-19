@@ -1,4 +1,5 @@
 import importlib.util
+import subprocess
 import pathlib
 import tempfile
 
@@ -21,9 +22,14 @@ with tempfile.TemporaryDirectory() as directory:
     payload.mkdir()
     (payload / 'AppBundleExe').write_bytes(b'native launcher')
     (payload / (module.NAME + '.dylib')).write_bytes(b'native mod')
+    for binary in payload.iterdir():
+        subprocess.run(['/usr/bin/xattr', '-w', 'com.apple.quarantine', '0081;fixture;test;', str(binary)], check=True)
     module.install(game, payload)
     target = game / module.NAME
     assert launcher.read_bytes() == b'native launcher'
+    for binary in [launcher, target / 'AppBundleExe', target / (module.NAME + '.dylib')]:
+        assert 'com.apple.quarantine' not in subprocess.check_output(['/usr/bin/xattr', str(binary)], text=True).splitlines()
+    assert 'com.apple.quarantine' in subprocess.check_output(['/usr/bin/xattr', str(payload / 'AppBundleExe')], text=True).splitlines()
     assert (target / 'zone/zm_patch.ff').read_bytes() == b'asset fixture'
     assert not (target / 'pfx').exists() and not (target / 'cod2map').exists()
     (target / 'logs').mkdir()

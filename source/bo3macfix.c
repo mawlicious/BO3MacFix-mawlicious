@@ -247,7 +247,7 @@ install_hook_name(HKAI_InitMapData, void, const char *mapname, char restart) {
         NavVolumeData *volume = DB_FindXAssetHeader(ASSET_TYPE_NAVVOLUME, asset_path, 0, -1);
         char output_prefix[0x200], error[256];
         snprintf(output_prefix, sizeof(output_prefix), Macfix_Path "/Physics/%s", mapname);
-        if (!bo3_nav_cache_valid(output_prefix, volume != NULL)) {
+        if (!bo3_nav_cache_valid(output_prefix, mesh, volume)) {
             if (mkdir(Macfix_Path "/Physics", 0755) != 0 && errno != EEXIST) {
                 Com_Error(__FILE__, __LINE__, 2, Error_Prefix "Could not create the navigation cache: %s", strerror(errno));
                 return;

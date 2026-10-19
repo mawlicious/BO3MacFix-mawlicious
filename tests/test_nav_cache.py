@@ -24,14 +24,18 @@ with tempfile.TemporaryDirectory(prefix="bo3macfix-nav-") as directory:
     mesh.write_bytes(b"existing mesh")
     volume.write_bytes(b"existing volume")
     receipt = work / "cache_native.receipt"
-    def valid(has_volume=True):
-        return subprocess.run([str(executable), "--check", str(prefix), str(int(has_volume))]).returncode == 0
+    def valid(has_volume=True, source="source mesh", volume_source="source volume"):
+        return subprocess.run([str(executable), "--check", str(prefix), str(int(has_volume)), source, volume_source]).returncode == 0
     def sign():
-        receipt.write_bytes(b"BO3NAV01" + b"\x01" + hashlib.sha256(mesh.read_bytes()).digest()
-                            + hashlib.sha256(volume.read_bytes()).digest())
+        buffers = [b"", b"", b"", b"source mesh", b"", b"", b"source volume", b"", b"", b""]
+        source = hashlib.sha256(b"".join(struct.pack("<I", len(b)) + b for b in buffers)).digest()
+        receipt.write_bytes(b"BO3NAV02" + b"\x01" + hashlib.sha256(mesh.read_bytes()).digest()
+                            + hashlib.sha256(volume.read_bytes()).digest() + source)
     assert not valid(), "Legacy cache must be regenerated"
     sign()
     assert valid()
+    assert not valid(source="updated source mesh"), "Map updates must invalidate old cache"
+    assert not valid(volume_source="updated source volume"), "Volume updates must invalidate old cache"
     assert not valid(False), "Receipt must agree with volume requirement"
     mesh.write_bytes(b"")
     assert not valid(), "Empty mesh must be rejected"
@@ -67,7 +71,7 @@ with tempfile.TemporaryDirectory(prefix="bo3macfix-nav-") as directory:
         assert volume.read_bytes() == b"existing volume"
         assert not list(work.glob("*.??????")), "Temporary output leaked"
     subprocess.run([str(executable), sys.argv[1], str(prefix)], check=True)
-    assert valid(), "Conversion must commit a matching receipt"
+    assert subprocess.run([str(executable), "--check-clump", sys.argv[1], str(prefix)]).returncode == 0, "Conversion must commit a matching source-bound receipt"
     assert mesh.stat().st_size > 64 and volume.stat().st_size > 64
     assert not list(work.glob("*.??????"))
     print("Native conversion and cache failure cleanup passed")

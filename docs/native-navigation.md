@@ -76,7 +76,11 @@ game may still overwrite its own console log. Friends-lobby changes are deferred
 Steam friendship behavior is unchanged from the upstream snapshot.
 
 Cache reuse requires a versioned completion receipt with SHA-256 digests of the
-mesh and, when required, volume. It is committed after both output files and is
+mesh and, when required, volume, plus a fingerprint of all source buffer lengths
+and bytes. Workshop updates therefore invalidate old conversions. It is committed after both output files and is
 invalidated before either existing output is replaced. Legacy caches without a
 receipt, missing volumes, and modified/truncated outputs are regenerated.
 The release excludes the historical compiled installer; use the upgrade command.
+
+The upgrade strips `com.apple.quarantine` from staged native binaries and the
+replacement launcher before activation; other extended attributes are preserved.

@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 """Install the native upgrade over existing BO3MacFix assets, preserving rollback."""
 import datetime
+import subprocess
 import pathlib
 import shutil
 import sys
 import tempfile
 
 NAME = 'BO3MacFix-mawlicious'
+
+def clear_quarantine(path):
+    # macOS Python builds do not consistently expose os.removexattr.
+    attributes = subprocess.check_output(['/usr/bin/xattr', str(path)], text=True).splitlines()
+    if 'com.apple.quarantine' in attributes:
+        subprocess.run(['/usr/bin/xattr', '-d', 'com.apple.quarantine', str(path)], check=True)
+
 
 def install(game, payload):
     game = game.resolve()
@@ -28,6 +36,7 @@ def install(game, payload):
                 shutil.copytree(assets / folder, staged / folder)
         for filename in ['AppBundleExe', NAME + '.dylib']:
             shutil.copy2(payload / filename, staged / filename)
+            clear_quarantine(staged / filename)
         (staged / 'AppBundleExe').chmod(0o755)
         (staged / (NAME + '.dylib')).chmod(0o644)
         backups = game / (NAME + '-backups')
@@ -40,6 +49,7 @@ def install(game, payload):
             staged.rename(target)
             replacement = pathlib.Path(directory) / 'AppBundleExe'
             shutil.copy2(target / 'AppBundleExe', replacement)
+            clear_quarantine(replacement)
             replacement.replace(launcher)
         except BaseException:
             if target.exists():
@@ -58,5 +68,5 @@ if __name__ == '__main__':
     payload = pathlib.Path(__file__).resolve().parent.parent / NAME
     try:
         install(pathlib.Path(sys.argv[1]), payload)
-    except (OSError, RuntimeError) as error:
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
         sys.exit(str(error))

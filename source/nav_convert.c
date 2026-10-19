@@ -72,29 +72,60 @@ static int file_digest(const char *path, unsigned char digest[CC_SHA256_DIGEST_L
     return ok;
 }
 
-static int cache_receipt(const char *prefix, int has_volume, unsigned char receipt[73]) {
-    memcpy(receipt, "BO3NAV01", 8);
-    receipt[8] = !!has_volume;
+static int source_digest(const NavMeshData *mesh, const NavVolumeData *volume,
+                         unsigned char digest[CC_SHA256_DIGEST_LENGTH]) {
+    if (!mesh || !mesh->mediatorBuffer || mesh->mediatorBufferSize <= 0) return 0;
+    NavBuffer buffers[] = {
+        {mesh->navMeshSettingsBuffer, mesh->navMeshSettingsBufferSize},
+        {mesh->userEdgePairsBuffer, mesh->userEdgePairsBufferSize},
+        {mesh->clusterGraphBuffer, mesh->clusterGraphBufferSize},
+        {mesh->mediatorBuffer, mesh->mediatorBufferSize},
+        {mesh->metadataBuffer, mesh->metadataBufferSize},
+        {mesh->clearanceCacheSeederBuffer, mesh->clearanceCacheSeederBufferSize},
+        {volume ? volume->smallNavVolumeSettingsBuffer : NULL, volume ? volume->smallNavVolumeSettingsBufferSize : 0},
+        {volume ? volume->smallNavVolumeMediatorBuffer : NULL, volume ? volume->smallNavVolumeMediatorBufferSize : 0},
+        {volume ? volume->bigNavVolumeSettingsBuffer : NULL, volume ? volume->bigNavVolumeSettingsBufferSize : 0},
+        {volume ? volume->bigNavVolumeMediatorBuffer : NULL, volume ? volume->bigNavVolumeMediatorBufferSize : 0},
+    };
+    CC_SHA256_CTX ctx;
+    CC_SHA256_Init(&ctx);
+    for (size_t i = 0; i < sizeof(buffers) / sizeof(buffers[0]); i++) {
+        int size = buffers[i].size;
+        if (size < 0 || size > 512 * 1024 * 1024 || (size && !buffers[i].data)) return 0;
+        unsigned char length[4] = {(unsigned char)size, (unsigned char)((unsigned)size >> 8),
+                                  (unsigned char)((unsigned)size >> 16), (unsigned char)((unsigned)size >> 24)};
+        CC_SHA256_Update(&ctx, length, sizeof(length));
+        if (size) CC_SHA256_Update(&ctx, buffers[i].data, (CC_LONG)size);
+    }
+    CC_SHA256_Final(digest, &ctx);
+    return 1;
+}
+
+static int cache_receipt(const char *prefix, const NavMeshData *mesh,
+                         const NavVolumeData *volume, unsigned char receipt[105]) {
+    memcpy(receipt, "BO3NAV02", 8);
+    receipt[8] = volume != NULL;
+    if (!source_digest(mesh, volume, receipt + 73)) return 0;
     memset(receipt + 9, 0, 64);
     char path[1040];
     if (snprintf(path, sizeof(path), "%s_navmesh.hkt", prefix) >= (int)sizeof(path) ||
         !file_digest(path, receipt + 9)) return 0;
-    if (has_volume &&
+    if (volume &&
         (snprintf(path, sizeof(path), "%s_navvolume.hkt", prefix) >= (int)sizeof(path) ||
          !file_digest(path, receipt + 41))) return 0;
     return 1;
 }
 
-int bo3_nav_cache_valid(const char *prefix, int has_volume) {
+int bo3_nav_cache_valid(const char *prefix, const NavMeshData *mesh, const NavVolumeData *volume) {
     if (!prefix) return 0;
     char path[1040];
     if (snprintf(path, sizeof(path), "%s_native.receipt", prefix) >= (int)sizeof(path)) return 0;
     FILE *file = fopen(path, "rb");
     if (!file) return 0;
-    unsigned char saved[73], actual[73];
+    unsigned char saved[105], actual[105];
     int ok = fread(saved, 1, sizeof(saved), file) == sizeof(saved) && fgetc(file) == EOF && !ferror(file);
     fclose(file);
-    return ok && cache_receipt(prefix, has_volume, actual) && !memcmp(saved, actual, sizeof(saved));
+    return ok && cache_receipt(prefix, mesh, volume, actual) && !memcmp(saved, actual, sizeof(saved));
 }
 
 int bo3_convert_nav(const NavMeshData *mesh, const NavVolumeData *volume,
@@ -154,8 +185,8 @@ int bo3_convert_nav(const NavMeshData *mesh, const NavVolumeData *volume,
     if (unlink(receipt_path) && errno != ENOENT) goto rename_failed;
     if (rename(mesh_temp, mesh_path)) goto rename_failed;
     mesh_temp[0] = 0;
-    unsigned char receipt[73];
-    if (!cache_receipt(prefix, volume != NULL, receipt)) {
+    unsigned char receipt[105];
+    if (!cache_receipt(prefix, mesh, volume, receipt)) {
         snprintf(error, error_size, "Reading committed navigation output for receipt");
         ok = 0;
         goto cleanup;

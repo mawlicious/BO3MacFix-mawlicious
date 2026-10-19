@@ -6,8 +6,16 @@
 #include <string.h>
 
 int main(int argc, char **argv) {
-    if (argc == 4 && !strcmp(argv[1], "--check"))
-        return bo3_nav_cache_valid(argv[2], atoi(argv[3])) ? 0 : 1;
+    if ((argc >= 4 && argc <= 6) && !strcmp(argv[1], "--check")) {
+        NavMeshData mesh = {0}; NavVolumeData volume = {0};
+        mesh.mediatorBuffer = (uint8_t *)(argc >= 5 ? argv[4] : "source mesh");
+        mesh.mediatorBufferSize = (int)strlen((char *)mesh.mediatorBuffer);
+        volume.smallNavVolumeSettingsBuffer = (uint8_t *)(argc == 6 ? argv[5] : "source volume");
+        volume.smallNavVolumeSettingsBufferSize = (int)strlen((char *)volume.smallNavVolumeSettingsBuffer);
+        return bo3_nav_cache_valid(argv[2], &mesh, atoi(argv[3]) ? &volume : NULL) ? 0 : 1;
+    }
+    int check = argc == 4 && !strcmp(argv[1], "--check-clump");
+    if (check) { argc--; argv++; }
     if (argc != 3) { fprintf(stderr, "usage: convert_clump input.clump output-prefix\n"); return 2; }
     FILE *f = fopen(argv[1], "rb");
     if (!f) { perror("input"); return 1; }
@@ -46,6 +54,11 @@ int main(int argc, char **argv) {
     FIELD(volume, bigNavVolumeSettings, 8); FIELD(volume, bigNavVolumeMediator, 9);
 #undef FIELD
     char error[256];
+    if (check) {
+        ok = bo3_nav_cache_valid(argv[2], &mesh, header.bool_hasNavVolume ? &volume : NULL);
+        free(data);
+        return ok ? 0 : 1;
+    }
     ok = bo3_convert_nav(&mesh, header.bool_hasNavVolume ? &volume : NULL, argv[2], error, sizeof(error));
     if (!ok) fprintf(stderr, "%s\n", error);
     free(data);
