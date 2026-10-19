@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
         NSString *macos = [[directory stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"CoDBlkOps3.app/Contents/MacOS"];
         NSString *target = [macos stringByAppendingPathComponent:@"AppBundleExe"];
         NSString *backup = [macos stringByAppendingPathComponent:@"AppBundleExe_before_mawlicious"];
-        if (!regularFile(target)) {
+        if (!uninstall && !regularFile(target)) {
             fprintf(stderr, "Game launcher not found. Place BO3MacFix-mawlicious beside CoDBlkOps3.app and quit the game before installing.\n");
             return 1;
         }

@@ -52,6 +52,14 @@ with tempfile.TemporaryDirectory(prefix='bo3-native-install-') as directory:
     assert (folder / 'logs/session.log').read_bytes() == b'preserve'
     run('--uninstall')
     assert launcher.read_bytes() == b'original launcher'
+    # Recovery must work even if the active launcher was deleted. Installation
+    # still requires an existing launcher so it can preserve a valid baseline.
+    launcher.unlink()
+    run(success=False)
+    assert not launcher.exists()
+    run('--uninstall')
+    assert launcher.read_bytes() == b'original launcher'
+    assert backup.read_bytes() == b'original launcher'
     # Missing/damaged assets must fail before replacing the active launcher.
     patch = folder / 'zone/zm_patch.ff'
     saved = patch.read_bytes()
