@@ -1,0 +1,19 @@
+name: Native build and tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build native binaries
+        run: make && make -C launcher && make -C installer
+      - name: Run regression tests
+        run: bash scripts/test.sh
+      - name: Package native upgrade
+        run: bash scripts/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BO3MacFix-mawlicious-macos-x86_64
+          path: release/*
