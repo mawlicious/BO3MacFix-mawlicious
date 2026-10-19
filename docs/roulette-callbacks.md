@@ -20,8 +20,10 @@ The patch changes only these four `== 1` checks to `=== 1`. An unset flag is
 inactive; integer 0 and 1 retain their behavior. Both instructions have the same
 size and stack effect. The script's bytes outside those four instructions must
 match SHA-256 `2157fe219c71aa2dc20a8241e78ea64e8797ef911671e8c49d2bd3158ceff663`
-after normalizing the four edits. Unknown revisions are left intact and logged.
-Already-patched buffers are left intact on later lookups, including after the
+after normalizing the four edits before any change is made. Unknown revisions
+that need edits are left intact and logged. A same-size buffer already containing
+all four replacement opcodes is treated as patched: it is left intact without
+hashing or an unknown-revision warning. This also handles later lookups after the
 engine has rewritten import operands during linking.
 
 The mod applies the edits when the engine requests the ScriptParseTree asset,
@@ -37,8 +39,10 @@ prove any FPS improvement. The original session contains no frame-time series.
 
 Validation includes sanitizer tests, an optional private original-script fixture,
 and decompiling the edited fixture to confirm exactly four comparison changes.
-The private fixture can be passed to `tests/test_script_fixes.c`'s executable;
-public tests exercise rejection without shipping game data.
+Run `bash scripts/test.sh /absolute/path/to/private-script.gscc` to include the
+private fixture assertions, or omit the argument to run public tests without
+shipping game data. Relative fixture paths are resolved from the caller's
+working directory.
 
 The first in-game test applied all four edits. The user played several rounds,
 killed zombies, and reported successfully using Pack-a-Punch before dying and
