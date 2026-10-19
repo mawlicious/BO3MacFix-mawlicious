@@ -16,6 +16,7 @@
 #include <sys/sysctl.h>
 #include <sys/mman.h>
 #include <sandbox.h>
+#include <pthread.h>
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/hid/IOHIDDevice.h>
@@ -23,6 +24,7 @@
 #include "bo3macnative.h"
 #include "codhavoktypes.h"
 #include "nav_convert.h"
+#include "script_fixes.h"
 #include "dobby.h"
 #include "utilities.h"
 #include "offsets.h"
@@ -80,6 +82,34 @@ static void (*Com_Error)(char *file, int line, int code, char *fmt, ...);
 static uint16_t (*Sys_Checksum)(uint8_t *payload, int paylen);
 static uint8_t (*MSG_ReadByte)(void *msg);
 static void (*MSG_WriteByte)(void *msg, int64_t c);
+
+// ScriptParseTree is asset type 54 in this Mac build (same layout as T7 PC).
+typedef struct {
+    const char *name;
+    int32_t length;
+    int32_t padding;
+    void *buffer;
+} ScriptParseTree;
+
+install_hook_name(DB_FindXAssetHeader, void *, int type, char *name, bool errorIfMissing, int waitTime) {
+    void *asset = orig_DB_FindXAssetHeader(type, name, errorIfMissing, waitTime);
+    if (asset && type == 54) {
+        static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+        static bool warned = false;
+        ScriptParseTree *script = asset;
+        pthread_mutex_lock(&mutex);
+        int result = fix_roulette_callbacks(script->name, script->buffer,
+                                           script->length > 0 ? (size_t)script->length : 0);
+        if (result > 0)
+            printf("[BO3MacFix-mawlicious] Fixed four optional Roulette event-flag checks\n");
+        else if (result < 0 && !warned) {
+            printf("[BO3MacFix-mawlicious] Roulette script revision unrecognized; callback fix skipped\n");
+            warned = true;
+        }
+        pthread_mutex_unlock(&mutex);
+    }
+    return asset;
+}
 
 // Keep rejection reasons in release session logs without flooding them when
 // malformed traffic is repeated. Never record passwords or packet contents.
@@ -589,6 +619,7 @@ __attribute__((constructor)) static void dylib_main() {
 
     // apply the hooks
     install_hook_HKAI_InitMapData((void *)(game_base_address + ADDR_HKAI_InitMapData));
+    install_hook_DB_FindXAssetHeader((void *)(game_base_address + ADDR_DB_FindXAssetHeader));
     install_hook_load_workshop_texture((void *)(game_base_address + ADDR_load_workshop_texture));
     install_hook_Live_SystemInfo((void *)(game_base_address + ADDR_Live_SystemInfo));
     install_hook_someLoggingFunction((void *)(game_base_address + ADDR_someLoggingFunction));

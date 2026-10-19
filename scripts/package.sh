@@ -13,6 +13,7 @@ mkdir -p "$folder/natives"
 cp "$name.dylib" launcher/AppBundleExe "installer/Install_$name" "$folder/"
 cp -R assets/zone assets/Physics "$folder/"
 cp ASSET_SHA256SUMS ASSETS.md LICENSE.txt README.md "$folder/"
+cp -R docs "$folder/"
 for action in Install Uninstall; do
     mode=$(echo "$action" | tr '[:upper:]' '[:lower:]')
     cat > "$folder/$action.command" <<INSTALL
