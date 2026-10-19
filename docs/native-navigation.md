@@ -64,11 +64,14 @@ Proprietary game captures and SDK files are not included in this repository.
 
 ## Installation and logging
 
-The release is a native-binary upgrade for an existing BO3MacFix installation.
-The install script creates `BO3MacFix-mawlicious`, copies the existing `zone` and
-optional `natives` assets, and backs up the active launcher before replacing it.
-Wine, the SDK, and prefixes are not copied. Source and release archives do not
-include proprietary game captures or assets.
+The release is a standalone folder with the native mod, launcher, installer,
+Install/Uninstall commands, and bundled upstream zone/campaign navigation files.
+It does not require an existing mod or a Python runtime. Put the folder beside
+CoDBlkOps3.app and run Install.command. The installer checks immutable zone
+checksums before changing the launcher and retains a baseline backup across
+reinstalls. Launcher replacement is staged and committed by an atomic rename.
+An installation lock serializes install/uninstall operations. No Wine files are
+shipped. Asset provenance and checksums are recorded in ASSETS.md.
 
 Each launcher run writes `BO3MacFix-mawlicious/logs/session-*.log`. Logs include
 game output and may contain player identities and private diagnostics. The
@@ -80,10 +83,11 @@ mesh and, when required, volume, plus a fingerprint of all source buffer lengths
 and bytes. Workshop updates therefore invalidate old conversions. It is committed after both output files and is
 invalidated before either existing output is replaced. Legacy caches without a
 receipt, missing volumes, and modified/truncated outputs are regenerated.
-The release excludes the historical compiled installer; use the upgrade command.
+The release includes the standalone native installer; the historical upgrade installer has been replaced.
 
-The upgrade strips `com.apple.quarantine` from staged native binaries and the
-replacement launcher before activation; other extended attributes are preserved.
+The native installer strips `com.apple.quarantine` from the bundled mod/launcher
+and the staged replacement launcher before activation. Other extended attributes
+are preserved.
 
 When an update removes its navigation volume, committing the new mesh also
 removes the obsolete volume before publishing the receipt. Mesh-only receipts

@@ -17,7 +17,7 @@ LDFLAGS =
 
 FRAMEWORKS = -framework CoreFoundation -framework Foundation
 
-SOURCES = installer.c utilities.c native.m
+SOURCES = installer.m
 
 all: $(TARGET)
 
