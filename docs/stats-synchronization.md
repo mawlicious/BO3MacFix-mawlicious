@@ -75,7 +75,9 @@ messages retain original handling.
 
 Progress logs include pending masks and engine state. Reply logs include the
 host's missing masks and are sampled at counts 1–4 and powers of two. These
-counters are lifetime diagnostic counters per local client, not transfer IDs.
+counters count only engine-accepted replies over the local client lifetime,
+not transfer IDs. Engine-rejected replies do not emit ACK logs or consume
+accepted-reply samples.
 They contain neither stats payloads nor passwords. A subsequent live session
 can distinguish arriving but stagnant replies from no replies.
 

@@ -44,6 +44,9 @@ static bool dispatch(int client, BO3StatsAddress from, BO3StatsMessage *message)
        when bits reappear: this can be an authoritative reply for a new transfer
        following a delayed reply from the previous transfer to the same host. */
     bool result = original_dispatch(client, from, message);
+    /* Rejected packets must not consume accepted-reply samples or appear
+       as host ACK evidence in diagnostics. */
+    if (!result) return result;
     uint64_t after[2];
     memcpy(after, connection + 0x25568, sizeof(after));
     unsigned replies = ++reply_count[client];

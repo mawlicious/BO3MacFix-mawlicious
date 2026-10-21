@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 static uint8_t *image, connection[0x25780 * 2];
 static BO3StatsDispatch hook;
@@ -146,9 +147,21 @@ int main(int argc, char **argv) {
     assert(!hook(0, stranger, &msg) && pending(0)[0] == 0xc000);
     stranger = server; stranger.port ^= 1;
     assert(!hook(0, stranger, &msg) && pending(0)[0] == 0xc000);
+    /* More than one sampling interval of rejected replies must emit nothing. */
+    fflush(stdout);
+    int saved_stdout = dup(STDOUT_FILENO);
+    FILE *captured = tmpfile();
+    assert(saved_stdout >= 0 && captured);
+    assert(dup2(fileno(captured), STDOUT_FILENO) >= 0);
     reject = true;
-    assert(!hook(0, server, &msg) && pending(0)[0] == 0xc000 && *state(0) == 8);
+    for (int i = 0; i < 64; ++i)
+        assert(!hook(0, server, &msg) && pending(0)[0] == 0xc000 && *state(0) == 8);
     reject = false;
+    fflush(stdout);
+    assert(ftell(captured) == 0);
+    assert(dup2(saved_stdout, STDOUT_FILENO) >= 0);
+    close(saved_stdout);
+    fclose(captured);
     *state(0) = 6;
     assert(!hook(0, server, &msg) && *state(0) == 6);
     assert(!hook(-1, server, &msg));
