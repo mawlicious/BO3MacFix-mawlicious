@@ -55,8 +55,8 @@ static bool dispatch(int client, BO3StatsAddress from, BO3StatsMessage *message)
                client, replies, ack.incoming[0], ack.incoming[1], after[0], after[1], read_int(active + 8));
     if ((after[0] != pending[0] || after[1] != pending[1]) &&
         after[0] == ack.incoming[0] && after[1] == ack.incoming[1])
-        printf("[BO3MacFix-mawlicious stats] Client %d: ACK progress %016" PRIx64 " %016" PRIx64 "; state %d\n",
-               client, after[0], after[1], read_int(active + 8));
+        printf("[BO3MacFix-mawlicious stats] Client %d: ACK mask change %016" PRIx64 " %016" PRIx64 " -> %016" PRIx64 " %016" PRIx64 "; state %d\n",
+               client, pending[0], pending[1], after[0], after[1], read_int(active + 8));
     return result;
 }
 

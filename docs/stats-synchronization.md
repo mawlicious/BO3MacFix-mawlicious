@@ -73,7 +73,9 @@ stride and both mask stores before installation. Unknown instructions disable
 diagnostics. Nonmatching syntax, other sources, other states and split
 messages retain original handling.
 
-Progress logs include pending masks and engine state. Reply logs include the
+Mask-change logs include both previous and resulting pending masks and engine
+state. They label every change neutrally, since restored missing bits do not
+represent forward progress. Reply logs include the
 host's missing masks and are sampled at counts 1–4 and powers of two. These
 counters count only engine-accepted replies over the local client lifetime,
 not transfer IDs. Engine-rejected replies do not emit ACK logs or consume
