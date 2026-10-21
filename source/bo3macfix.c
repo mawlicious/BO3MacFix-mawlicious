@@ -25,6 +25,7 @@
 #include "codhavoktypes.h"
 #include "nav_convert.h"
 #include "script_fixes.h"
+#include "lobby_timeout.h"
 #include "dobby.h"
 #include "utilities.h"
 #include "offsets.h"
@@ -616,6 +617,12 @@ __attribute__((constructor)) static void dylib_main() {
 
     // get the base address of the binary
     game_base_address = get_base_address();
+
+    int timeout_patch = install_lobby_info_timeout(game_base_address);
+    if (timeout_patch == 1)
+        printf(Version_Prefix " Lobby join-info timeout default: 10000 -> 30000 ms.\n");
+    else
+        fprintf(stderr, Version_Prefix " Lobby join-info timeout patch failed (%d).\n", timeout_patch);
 
     // apply the hooks
     install_hook_HKAI_InitMapData((void *)(game_base_address + ADDR_HKAI_InitMapData));
