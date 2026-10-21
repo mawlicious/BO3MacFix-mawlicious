@@ -26,6 +26,7 @@
 #include "nav_convert.h"
 #include "script_fixes.h"
 #include "lobby_timeout.h"
+#include "stats_sync.h"
 #include "dobby.h"
 #include "utilities.h"
 #include "offsets.h"
@@ -623,6 +624,12 @@ __attribute__((constructor)) static void dylib_main() {
         printf(Version_Prefix " Lobby join-info timeout default: 10000 -> 30000 ms.\n");
     else
         fprintf(stderr, Version_Prefix " Lobby join-info timeout patch failed (%d).\n", timeout_patch);
+
+    int stats_patch = bo3_install_stats_sync(game_base_address);
+    if (stats_patch == 1)
+        printf(Version_Prefix " Stats ACK ordering fix enabled.\n");
+    else
+        fprintf(stderr, Version_Prefix " Stats ACK ordering fix unavailable (%d).\n", stats_patch);
 
     // apply the hooks
     install_hook_HKAI_InitMapData((void *)(game_base_address + ADDR_HKAI_InitMapData));
