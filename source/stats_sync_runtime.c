@@ -7,7 +7,6 @@
 
 static uint64_t game_base;
 static BO3StatsDispatch original_dispatch;
-static unsigned stale_count[2];
 static unsigned reply_count[2];
 
 static int32_t read_int(const void *address) {
@@ -26,8 +25,8 @@ static bool dispatch(int client, BO3StatsAddress from, BO3StatsMessage *message)
 
     const uint8_t *active = (const uint8_t *)(uintptr_t)(game_base + 0x115324a0 + client * 0x1078);
     uint8_t *connection = connections + client * 0x25780;
-    /* CA_SENDINGDATA is 8, not the earlier CA_LOADING state 6. Never change
-       connection state ourselves, and never make a new transfer inherit ACKs. */
+    /* CA_SENDINGDATA is 8, not the earlier CA_LOADING state 6. Observe only; let the engine
+       retain all source checks, mask replacement and state transitions. */
     if (read_int(active + 8) != 8)
         return original_dispatch(client, from, message);
     BO3StatsAddress server;
@@ -38,32 +37,13 @@ static bool dispatch(int client, BO3StatsAddress from, BO3StatsMessage *message)
     uint64_t pending[2];
     memcpy(pending, connection + 0x25568, sizeof(pending));
     BO3StatsAck ack;
-    if (!bo3_stats_ack(message->data, (size_t)message->current_size, pending, &ack))
+    if (!bo3_stats_ack(message->data, (size_t)message->current_size, &ack))
         return original_dispatch(client, from, message);
 
-    bool result;
-    if (ack.stale) {
-        /* Keep the engine's entire source/state validation and zero-mask
-           transition. Only normalize ACK bits against already acknowledged
-           progress; no receipt is invented and no stats data is skipped. */
-        uint8_t packet[96];
-        memset(packet, 255, 4);
-        int size = snprintf((char *)packet + 4, sizeof(packet) - 4,
-                            "statresponse %" PRIu64 " %" PRIu64 "\n",
-                            ack.missing[0], ack.missing[1]);
-        BO3StatsMessage normalized = *message;
-        normalized.data = packet;
-        normalized.split_data = NULL;
-        normalized.max_size = normalized.current_size = size + 4;
-        normalized.split_size = normalized.read_count = normalized.bit = 0;
-        result = original_dispatch(client, from, &normalized);
-        unsigned count = ++stale_count[client];
-        if (count <= 4 || (count & (count - 1)) == 0)
-            printf("[BO3MacFix-mawlicious stats] Client %d: normalized stale ACK (%u); pending %016" PRIx64 " %016" PRIx64 "\n",
-                   client, count, ack.missing[0], ack.missing[1]);
-    } else {
-        result = original_dispatch(client, from, message);
-    }
+    /* Replies carry no transfer identifier. Preserve stock replacement even
+       when bits reappear: this can be an authoritative reply for a new transfer
+       following a delayed reply from the previous transfer to the same host. */
+    bool result = original_dispatch(client, from, message);
     uint64_t after[2];
     memcpy(after, connection + 0x25568, sizeof(after));
     unsigned replies = ++reply_count[client];
@@ -71,7 +51,7 @@ static bool dispatch(int client, BO3StatsAddress from, BO3StatsMessage *message)
         printf("[BO3MacFix-mawlicious stats] Client %d: reply %u host-missing %016" PRIx64 " %016" PRIx64 "; pending %016" PRIx64 " %016" PRIx64 "; state %d\n",
                client, replies, ack.incoming[0], ack.incoming[1], after[0], after[1], read_int(active + 8));
     if ((after[0] != pending[0] || after[1] != pending[1]) &&
-        after[0] == ack.missing[0] && after[1] == ack.missing[1])
+        after[0] == ack.incoming[0] && after[1] == ack.incoming[1])
         printf("[BO3MacFix-mawlicious stats] Client %d: ACK progress %016" PRIx64 " %016" PRIx64 "; state %d\n",
                client, after[0], after[1], read_int(active + 8));
     return result;

@@ -30,11 +30,10 @@ static bool engine(int client, BO3StatsAddress from, BO3StatsMessage *msg) {
     if (reject || client < 0 || client >= 2 || from.ip != server.ip || from.port != server.port ||
         *state(client) != 8 || !msg || msg->overflowed) return false;
     BO3StatsAck ack;
-    const uint64_t all[] = {UINT64_MAX, UINT64_MAX};
-    if (!bo3_stats_ack(msg->data, msg->current_size, all, &ack)) return false;
+    if (!bo3_stats_ack(msg->data, msg->current_size, &ack)) return false;
     /* Model the audited engine: REPLACE masks, then transition on exact zero. */
-    memcpy(pending(client), ack.missing, sizeof(ack.missing));
-    if (!(ack.missing[0] | ack.missing[1])) *state(client) = 7;
+    memcpy(pending(client), ack.incoming, sizeof(ack.incoming));
+    if (!(ack.incoming[0] | ack.incoming[1])) *state(client) = 7;
     return true;
 }
 int DobbyHook(void *address, void *replacement, void **original) {
@@ -60,24 +59,22 @@ static void deliver(int client, uint64_t low, uint64_t high) {
     assert(!memcmp(buffer, before, sizeof(buffer)));
 }
 int main(int argc, char **argv) {
-    const uint64_t all[] = {UINT64_MAX, UINT64_MAX};
     uint8_t buffer[128];
     BO3StatsAck ack;
     BO3StatsMessage msg = packet(buffer, UINT64_MAX, UINT64_C(1) << 63);
-    assert(bo3_stats_ack(buffer, msg.current_size, all, &ack));
-    assert(ack.missing[0] == UINT64_MAX && ack.missing[1] == (UINT64_C(1) << 63));
-    assert(!ack.stale);
-    for (int n = 0; n < 19; ++n) assert(!bo3_stats_ack(buffer, n, all, &ack));
+    assert(bo3_stats_ack(buffer, msg.current_size, &ack));
+    assert(ack.incoming[0] == UINT64_MAX && ack.incoming[1] == (UINT64_C(1) << 63));
+    for (int n = 0; n < 19; ++n) assert(!bo3_stats_ack(buffer, n, &ack));
     const char *bad[] = {"statresponse -1 0", "statresponse 18446744073709551616 0",
                          "statresponse 1", "statresponse 1 0 extra", "statresponse 1 0\n0",
                          "statresponse  1 0", "statresponse 1 +0", "stats 1 0"};
     for (size_t i = 0; i < sizeof(bad)/sizeof(*bad); ++i) {
         memset(buffer, 255, 4);
         strcpy((char *)buffer + 4, bad[i]);
-        assert(!bo3_stats_ack(buffer, strlen(bad[i]) + 4, all, &ack));
+        assert(!bo3_stats_ack(buffer, strlen(bad[i]) + 4, &ack));
     }
-    assert(!bo3_stats_ack(NULL, 20, all, &ack));
-    assert(!bo3_stats_ack(buffer, 129, all, &ack));
+    assert(!bo3_stats_ack(NULL, 20, &ack));
+    assert(!bo3_stats_ack(buffer, 129, &ack));
 
     const size_t image_size = 0x115345a8;
     image = mmap(NULL, image_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
@@ -115,33 +112,35 @@ int main(int argc, char **argv) {
     fail_hook = 0;
     assert(bo3_install_stats_sync((uintptr_t)image) == 1);
 
-    /* Exact 16-chunk symptom: a late old ACK restores bits 15/16 in stock.
-       Corrected path keeps bit 15 cleared, then honors the real final ACK. */
+    /* Observation must preserve stock behavior, including restored bits. */
     reset(0, 0xffff, 0);
     deliver(0, 0xc000, 0);
     deliver(0, 0x8000, 0);
     deliver(0, 0xc000, 0);
-    assert(pending(0)[0] == 0x8000 && *state(0) == 8);
+    assert(pending(0)[0] == 0xc000 && *state(0) == 8);
     deliver(0, 0, 0);
     assert(*state(0) == 7 && !pending(0)[0]);
     /* A missing final ACK MUST NOT be manufactured. */
     reset(0, 0x8000, 0);
     for (int i = 0; i < 8; ++i) deliver(0, 0xc000, 0);
-    assert(*state(0) == 8 && pending(0)[0] == 0x8000);
-    /* Real host missing masks are nested. Reordering cannot manufacture a
-       zero mask when no complete acknowledgement arrived. */
+    assert(*state(0) == 8 && pending(0)[0] == 0xc000);
+    /* Both mask words, including the high bit, pass through unchanged. */
     reset(1, UINT64_MAX, UINT64_MAX);
     deliver(1, UINT64_MAX, UINT64_C(1) << 63);
     deliver(1, 0, UINT64_C(1) << 63);
     deliver(1, UINT64_MAX, UINT64_C(1) << 63);
-    assert(*state(1) == 8 && !pending(1)[0] && pending(1)[1] == (UINT64_C(1) << 63));
+    assert(*state(1) == 8 && pending(1)[0] == UINT64_MAX && pending(1)[1] == (UINT64_C(1) << 63));
     deliver(1, 0, 0);
     assert(*state(1) == 7 && !pending(1)[0] && !pending(1)[1]);
-    /* Fresh map transfer resets the engine's masks. Previous progress does
-       not leak into it, and local clients remain independent. */
+    /* New transfer, same host: an old nonzero reply arrives before the new
+       host's authoritative mask. The new mask MUST restore needed chunks. */
     reset(0, 0xffff, 0);
+    deliver(0, 0x8000, 0); /* delayed reply from the previous transfer */
+    deliver(0, 0xc000, 0); /* current host still needs chunks 15 and 16 */
+    assert(pending(0)[0] == 0xc000 && *state(0) == 8);
+    deliver(0, 0xffff, 0); /* all missing is authoritative too */
+    assert(pending(0)[0] == 0xffff && *state(0) == 8);
     deliver(0, 0xc000, 0);
-    assert(pending(0)[0] == 0xc000);
     msg = packet(buffer, 0xffff, 0);
     BO3StatsAddress stranger = server; stranger.ip ^= 1;
     assert(!hook(0, stranger, &msg) && pending(0)[0] == 0xc000);
@@ -156,5 +155,5 @@ int main(int argc, char **argv) {
     assert(!hook(2, server, &msg));
     assert(dispatch_calls > 10);
     munmap(image, image_size);
-    puts("PASS: reordered stats ACKs, 16-chunk stall, uint64 boundaries, source validation, split clients, fresh transfer, guard and hook failure");
+    puts("PASS: stats ACK observation, cross-transfer delayed replies, uint64 boundaries, source validation, split clients, fresh transfer, guard and hook failure");
 }

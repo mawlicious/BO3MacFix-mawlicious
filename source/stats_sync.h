@@ -4,16 +4,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* A statresponse carries two decimal uint64 missing-packet masks. During a
-   single transfer an acknowledgement can clear bits, never restore them. */
+/* A statresponse carries two decimal uint64 missing-packet masks. There is
+   no transfer identifier, so observations must not accumulate across replies. */
 typedef struct {
     uint64_t incoming[2];
-    uint64_t missing[2];
-    bool stale;
 } BO3StatsAck;
 
-bool bo3_stats_ack(const uint8_t *packet, size_t length,
-                   const uint64_t pending[2], BO3StatsAck *result);
+bool bo3_stats_ack(const uint8_t *packet, size_t length, BO3StatsAck *result);
 /* Returns 1 for supported instructions, 0 otherwise. Read-only. */
 int bo3_stats_sync_supported(uint64_t base);
 /* 1 installed, -1 unsupported instructions, -2 hook failure. */

@@ -1,4 +1,4 @@
-# Synchronizing game settings: stats acknowledgement ordering
+# Synchronizing game settings: stats acknowledgement diagnostics
 
 This change is prepared for review and is **not installed** on the user's
 machine. BOIIIMac development remains paused. The installed MacFix dylib still
@@ -49,48 +49,48 @@ Mac addresses below are offsets from the Mach-O image base:
 - Connection pointer global `0x115345a0`, stride `0x25780`; client UI array
   `0x115324a0`, stride `0x1078`, state at `+8`.
 
-Replacing masks loses knowledge of earlier receipts. For example, after a
-`0x8000` missing mask, a delayed older `0xc000` reply restores chunk 15 to the
-retry list even though it was acknowledged. This causes unnecessary retries.
-For a receiver that accumulates chunks monotonically, every received mask is
-nested: combining those masks does **not** recover a lost final zero reply.
-That limitation matters here. The ordering defect is reproducible, but
-**does not by itself establish the cause or resolution of either recorded
-stall**. The reply diagnostics are needed before claiming an end-to-end fix.
+A delayed older reply can restore previously cleared bits and cause redundant
+retries. However, replies contain no transfer identifier: a reply from the
+previous transfer can also arrive during a new transfer to the same host.
+Intersecting masks would then prevent a subsequent authoritative reply from
+restoring chunks needed by the new transfer. Resetting a local cache cannot
+identify which transfer an untagged incoming reply belongs to. The initially
+proposed cumulative-mask change was therefore removed during review.
+
+For a receiver that accumulates chunks monotonically, missing masks are nested;
+combining them also cannot recover a lost final zero acknowledgement. Neither
+observation establishes the cause or resolution of the two recorded stalls.
 
 ## Change and limits
 
-During state 8, recognized replies from the current server are normalized to
-`current_pending & received_missing`. Every cleared bit was acknowledged by a
-real prior reply in this transfer. The original engine dispatcher still checks
-the source, parses the reply and performs its own completion transition.
-No timeout is increased here, no stats packet is treated as received merely
-because it was sent, and no connection state is forced.
+The hook only observes recognized replies from the current server in state 8.
+It passes the original packet and message to the original engine dispatcher
+unchanged. The engine retains source validation, mask replacement and state
+transitions. There is no cumulative ACK state and no packet normalization.
 
 The hook checks instruction signatures for the dispatcher, connection lookup,
 stride and both mask stores before installation. Unknown instructions disable
-this fix with a diagnostic. Nonmatching packet syntax, other sources, other
-client states and split messages retain the original handling. Input packets
-are never edited in place. Engine initialization of new transfer masks also
-resets the cumulative knowledge, without a separate persistent ACK cache.
+diagnostics. Nonmatching syntax, other sources, other states and split
+messages retain original handling.
 
-Progress logs include pending masks and the engine state. Repeated replies
-and stale-reply notices are sampled at counts 1–4 and powers of two, so a
-future session can distinguish arriving but stagnant replies from no replies.
-They contain neither stats payloads nor passwords.
+Progress logs include pending masks and engine state. Reply logs include the
+host's missing masks and are sampled at counts 1–4 and powers of two. These
+counters are lifetime diagnostic counters per local client, not transfer IDs.
+They contain neither stats payloads nor passwords. A subsequent live session
+can distinguish arriving but stagnant replies from no replies.
 
-This cannot recover a chunk that was never acknowledged by any received
-reply, fix a broken route, or repair a host that stops receiving. Those cases
-still need a later live log and, potentially, host-side evidence. The old
-30-second lobby-info change is preserved as a separate commit in this PR;
-it addresses a different connection stage.
+**This PR does not yet fix the recorded synchronization stalls.** It prepares
+the missing evidence needed to choose a supported fix. Host-side evidence may
+also be necessary. The existing 30-second lobby-info change is preserved as a
+separate commit; it addresses a different connection stage.
 
 ## Verification
 
 `bash scripts/test.sh` runs the new parser/runtime regression with ASan/UBSan.
 The runtime fixture models the audited engine's mask replacement and zero-mask
 transition, and invokes the actual hook through the mocked Dobby installation.
-It tests the observed 16-chunk pending shape, reordered replies,
+It tests unchanged handling of reordered replies and delayed replies crossing
+a new transfer to the same host,
 both 64-bit words, source rejection, independent
 local clients, new transfers, incomplete transfers remaining incomplete,
 instruction guard failures and hook installation failure. This is an offline
@@ -107,5 +107,4 @@ clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource \
 ```
 
 After review, install only when the user is finished playing and authorizes
-installation. A subsequent friend-hosted game must validate whether stalls
-are resolved. Do not describe the fix as live-validated before that test.
+installation. A subsequent friend-hosted game must validate the missing ACK evidence. Do not describe the fix as live-validated before that test.

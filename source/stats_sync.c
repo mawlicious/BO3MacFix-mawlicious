@@ -15,25 +15,22 @@ static bool decimal(const uint8_t *data, size_t size, size_t *cursor, uint64_t *
 }
 
 bool bo3_stats_ack(const uint8_t *packet, size_t length,
-                   const uint64_t pending[2], BO3StatsAck *result) {
+                   BO3StatsAck *result) {
     static const uint8_t prefix[] = {255,255,255,255,'s','t','a','t','r','e','s','p','o','n','s','e',' '};
-    if (!packet || !pending || !result || length < sizeof(prefix) || length > 128 ||
+    if (!packet || !result || length < sizeof(prefix) || length > 128 ||
         memcmp(packet, prefix, sizeof(prefix))) return false;
     size_t cursor = sizeof(prefix);
     uint64_t incoming[2];
     if (!decimal(packet, length, &cursor, &incoming[0]) ||
         cursor == length || packet[cursor++] != ' ' ||
         !decimal(packet, length, &cursor, &incoming[1])) return false;
-    /* The engine accepts a newline or NUL terminator; don't normalize packets
+    /* The engine accepts a newline or NUL terminator; don't inspect packets
        containing another command, embedded NULs or unrecognized syntax. */
     if (cursor < length && packet[cursor] == '\r') ++cursor;
     if (cursor < length && packet[cursor] == '\n') ++cursor;
     if (cursor < length && packet[cursor] == 0) ++cursor;
     if (cursor != length) return false;
     memcpy(result->incoming, incoming, sizeof(incoming));
-    result->missing[0] = pending[0] & incoming[0];
-    result->missing[1] = pending[1] & incoming[1];
-    result->stale = result->missing[0] != incoming[0] || result->missing[1] != incoming[1];
     return true;
 }
 

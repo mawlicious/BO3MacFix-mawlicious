@@ -627,9 +627,9 @@ __attribute__((constructor)) static void dylib_main() {
 
     int stats_patch = bo3_install_stats_sync(game_base_address);
     if (stats_patch == 1)
-        printf(Version_Prefix " Stats ACK ordering fix enabled.\n");
+        printf(Version_Prefix " Stats ACK diagnostics enabled.\n");
     else
-        fprintf(stderr, Version_Prefix " Stats ACK ordering fix unavailable (%d).\n", stats_patch);
+        fprintf(stderr, Version_Prefix " Stats ACK diagnostics unavailable (%d).\n", stats_patch);
 
     // apply the hooks
     install_hook_HKAI_InitMapData((void *)(game_base_address + ADDR_HKAI_InitMapData));
