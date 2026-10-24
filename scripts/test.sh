@@ -12,6 +12,8 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_havok_convert.c source/havok_convert.c -o "$work/test-convert"
 "$work/test-convert"
+clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_stats_sync.c source/stats_sync.c source/stats_sync_runtime.c -o "$work/test-stats"
+"$work/test-stats"
 clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_script_fixes.c source/script_fixes.c -o "$work/test-scripts"
 if (( $# == 1 )); then
     "$work/test-scripts" "$fixture"
