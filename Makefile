@@ -17,7 +17,7 @@ LDFLAGS = -shared -Wl,-undefined -Wl,dynamic_lookup -Llib -ldobby
 
 FRAMEWORKS = -framework CoreFoundation -framework IOKit
 
-SOURCES = source/bo3macfix.c source/bo3macnative.m source/utilities.c source/steam.c source/exports.c source/havok_convert.c source/nav_convert.c source/script_fixes.c source/lobby_timeout.c source/stats_sync.c source/stats_sync_runtime.c
+SOURCES = source/bo3macfix.c source/bo3macnative.m source/utilities.c source/steam.c source/exports.c source/havok_convert.c source/nav_convert.c source/script_fixes.c source/lobby_timeout.c source/stats_sync.c source/stats_sync_runtime.c source/memory_io.c
 
 all: $(TARGET)
 

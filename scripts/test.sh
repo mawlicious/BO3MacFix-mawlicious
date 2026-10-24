@@ -11,7 +11,11 @@ cd "$(dirname "$0")/.."
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_havok_convert.c source/havok_convert.c -o "$work/test-convert"
+clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/benchmark_navigation.c source/havok_convert.c -o "$work/benchmark-navigation"
+"$work/benchmark-navigation" 8
 "$work/test-convert"
+clang -std=c11 -D_DARWIN_C_SOURCE -Wall -Wextra -Werror -fsanitize=address,undefined -g tests/test_memory_io.c -o "$work/test-memory-io"
+"$work/test-memory-io"
 clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_stats_sync.c source/stats_sync.c source/stats_sync_runtime.c -o "$work/test-stats"
 "$work/test-stats"
 clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_script_fixes.c source/script_fixes.c -o "$work/test-scripts"

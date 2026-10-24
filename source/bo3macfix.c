@@ -27,6 +27,7 @@
 #include "script_fixes.h"
 #include "lobby_timeout.h"
 #include "stats_sync.h"
+#include "memory_io.h"
 #include "dobby.h"
 #include "utilities.h"
 #include "offsets.h"
@@ -618,6 +619,10 @@ __attribute__((constructor)) static void dylib_main() {
 
     // get the base address of the binary
     game_base_address = get_base_address();
+
+    int memory_io = bo3_install_memory_io(game_base_address);
+    printf(Version_Prefix " Asset stream buffer optimization: %s (%d).\n",
+           memory_io == 1 ? "enabled" : "skipped", memory_io);
 
     int timeout_patch = install_lobby_info_timeout(game_base_address);
     if (timeout_patch == 1)
