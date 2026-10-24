@@ -77,7 +77,32 @@ int main(void) {
     assert(read32(out+data+array+12)==123 && read32(out+data+array+16+12)==456);
     assert(read32(out+data+52)==0x80000002);
     uint32_t virt=read32(out+192+32);assert(read32(out+data+virt)==0);
+    /* Input fixup order is not semantic. Sorting must preserve output bytes. */
+    unsigned char shuffled[INPUT_SIZE];memcpy(shuffled,input,sizeof(shuffled));
+    for (unsigned i=0;i<4;i++)
+        memcpy(shuffled+DATA+128+i*8,input+DATA+128+(3-i)*8,8);
+    void *shuffled_result=NULL;size_t shuffled_size=0;
+    assert(hkconv_convert(shuffled,sizeof(shuffled),classes,2,&shuffled_result,&shuffled_size,error,sizeof(error)));
+    assert(shuffled_size==size && !memcmp(result,shuffled_result,size));
+    hkconv_free(shuffled_result);
+    memcpy(shuffled+DATA+136,shuffled+DATA+128,8);
+    expect_failure(shuffled,sizeof(shuffled),classes,2,"Duplicate pointer fixup");
     hkconv_free(result);
+
+    /* Opaque arrays retain every byte and interior pointer across elements. */
+    hkconv_member opaque_members[5];memcpy(opaque_members,graph_members,sizeof(opaque_members));
+    opaque_members[1].class_name=NULL;
+    opaque_members[4].element_kind=HKCONV_BYTES;
+    opaque_members[4].element_size=24;
+    opaque_members[4].class_name=NULL;
+    hkconv_class opaque_classes[2];memcpy(opaque_classes,classes,sizeof(opaque_classes));
+    opaque_classes[0].members=opaque_members;
+    fixture(input);put32(input+DATA+132,64+29);
+    assert(hkconv_convert(input,sizeof(input),opaque_classes,2,&result,&size,error,sizeof(error)));
+    out=result;data=read32(out+192+20);array=fixup_target(out,40);
+    assert(!memcmp(out+data+array,input+DATA+64,48));
+    assert(fixup_target(out,16)==array+29);
+    hkconv_free(result);fixture(input);
 
     /* Every truncation, including a valid-looking partial section, fails. */
     for (size_t n=0;n<sizeof(input);n++) expect_failure(input,n,classes,2,NULL);

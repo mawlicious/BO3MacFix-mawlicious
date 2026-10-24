@@ -24,6 +24,10 @@ installer, use Finder's **Open** action and approve it in Privacy & Security.
 The window title and top-right in-game label show `BO3MacFix-mawlicious`.
 Each run saves a separate log in `BO3MacFix-mawlicious/logs`.
 
+Memory optimizations reduce native navigation conversion scratch storage and
+cap oversized read-only asset stream buffers on large-block volumes. They do
+not lower graphics quality. [Measurements and limitations](docs/memory-investigation.md).
+
 This version also repairs four uninitialized event-flag comparisons in the
 inspected One Barrier Roulette V2 script. The repair is restricted to that exact
 script revision; Workshop updates with different bytes are left intact.

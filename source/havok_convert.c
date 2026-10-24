@@ -128,8 +128,15 @@ static int mapped(Context *c,uint32_t sec,uint32_t from,uint32_t *to) {
     return 0;
 }
 static Fixup *pointer_at(Context *c,uint32_t sec,uint32_t at) {
-    for (size_t i=0;i<c->fixup_count;i++) if (c->fixups[i].sec==sec && c->fixups[i].from==at) {
-        c->fixups[i].used=1; return &c->fixups[i];
+    size_t lo=0,hi=c->fixup_count;
+    while (lo<hi) {
+        size_t mid=lo+(hi-lo)/2;
+        Fixup *f=&c->fixups[mid];
+        if (f->sec<sec || (f->sec==sec && f->from<at)) lo=mid+1;
+        else hi=mid;
+    }
+    if (lo<c->fixup_count && c->fixups[lo].sec==sec && c->fixups[lo].from==at) {
+        c->fixups[lo].used=1; return &c->fixups[lo];
     }
     const uint8_t *p=source(c,sec,at,8);
     if (p) for (int i=0;i<8;i++) if (p[i]) { fail(c,"Pointer without fixup at %u:%u",sec,at); break; }
@@ -231,8 +238,16 @@ static int array(Context *c,uint32_t sec,uint32_t at,uint32_t out,const hkconv_m
      * 16-byte storage satisfies their alignment without guessing their type. */
     dest=alloc_data(c,(size_t)count*dst_stride,16); if (c->failed) return 0;
     if (!add_map(c,to_sec,to,0,dest)) return 0;
-    for (uint32_t i=0;i<count;i++)
-        if (!value(c,to_sec,to+i*src_stride,dest+i*dst_stride,m->element_kind,m->element_size,m->class_name,depth+1)) return 0;
+    if (m->element_kind==HKCONV_BYTES) {
+        /* Opaque elements keep their layout. One contiguous mapping preserves
+         * every interior address without a metadata allocation per element. */
+        uint32_t bytes=count*src_stride;
+        memcpy(c->data.p+dest,c->input+c->sections[to_sec].start+to,bytes);
+        if (!add_map(c,to_sec,to,bytes,dest)) return 0;
+    } else {
+        for (uint32_t i=0;i<count;i++)
+            if (!value(c,to_sec,to+i*src_stride,dest+i*dst_stride,m->element_kind,m->element_size,m->class_name,depth+1)) return 0;
+    }
     Patch p={out,to_sec,to}; return APPEND(c,patches,p);
 }
 
@@ -264,6 +279,12 @@ static int object(Context *c,uint32_t sec,uint32_t at,const hkconv_class *cls,ui
     Object o={sec,at,out,cls};
     if (!APPEND(c,objects,o) || !add_map(c,sec,at,0,out)) return 0;
     *dest=out; return fields(c,sec,at,out,cls,depth+1);
+}
+
+static int compare_fixups(const void *a,const void *b) {
+    const Fixup *x=a,*y=b;
+    if (x->sec!=y->sec) return x->sec<y->sec ? -1 : 1;
+    return x->from<y->from ? -1 : x->from>y->from;
 }
 
 static int parse(Context *c) {
@@ -305,8 +326,6 @@ static int parse(Context *c) {
                 if (!range(at,stride,ends[global])) return fail(c,"Truncated pointer fixup");
                 Fixup v={i,u32(f),global?u32(f+4):i,u32(f+(global?8:4)),0};
                 if (!source(c,v.sec,v.from,8) || !source(c,v.to_sec,v.to,1)) return 0;
-                for (size_t k=0;k<c->fixup_count;k++) if (c->fixups[k].from==v.from)
-                    return fail(c,"Duplicate pointer fixup");
                 if (!APPEND(c,fixups,v)) return 0;
                 at+=stride;
             }
@@ -322,6 +341,12 @@ static int parse(Context *c) {
             if (!APPEND(c,virtuals,v)) return 0;
             at+=12;
         }
+    }
+    if (c->fixup_count>1) {
+        qsort(c->fixups,c->fixup_count,sizeof(*c->fixups),compare_fixups);
+        for (size_t i=1;i<c->fixup_count;i++)
+            if (!compare_fixups(&c->fixups[i-1],&c->fixups[i]))
+                return fail(c,"Duplicate pointer fixup");
     }
     if (!c->virtual_count) return fail(c,"No class objects in packfile");
     /* The loader uses the header's root class name independently of virtual
@@ -357,8 +382,14 @@ static int write_output(Context *c,void **output,size_t *output_size) {
     size_t global=align16(local+c->patch_count*8),virt=global;
     size_t end=align16(virt+c->virtual_count*12),total=data_start+end;
     if (total>LIMIT) return fail(c,"Output exceeds size limit");
-    uint8_t *p=malloc(total); if (!p) return fail(c,"Out of memory");
-    memset(p,0xff,total); memcpy(p,c->input,64);
+    /* Reuse the relaid-out data allocation instead of retaining it alongside
+     * a second complete packfile. Move data before initializing its prefix. */
+    uint8_t *p=realloc(c->data.p,total); if (!p) return fail(c,"Out of memory");
+    c->data.p=NULL;
+    memmove(p+data_start,p,c->data.n);
+    memset(p,0xff,data_start);
+    memset(p+data_start+c->data.n,0xff,end-c->data.n);
+    memcpy(p,c->input,64);
     p[18]=1; w32(p+20,3); w32(p+24,2); w32(p+28,root); w32(p+32,0);
     /* Preserve the SDK's predicate marker (BO3 uses 21,0). If an extended
      * source header was accepted, its extension is deliberately omitted. */
@@ -367,7 +398,6 @@ static int write_output(Context *c,void **output,size_t *output_size) {
     section_header(p+128,"__types__",(uint32_t)data_start,0,0,0,0);
     section_header(p+192,"__data__",(uint32_t)data_start,(uint32_t)local,(uint32_t)global,(uint32_t)virt,(uint32_t)end);
     memcpy(p+256,c->input+c->sections[c->names_sec].start,names_size);
-    memcpy(p+data_start,c->data.p,c->data.n);
     for (size_t i=0;i<c->patch_count;i++) {
         Patch *patch=&c->patches[i]; uint32_t dest;
         if (!mapped(c,patch->sec,patch->to,&dest)) { free(p); return fail(c,"Unmapped pointer target %u:%u",patch->sec,patch->to); }
@@ -407,7 +437,12 @@ int hkconv_convert(const void *input,size_t input_size,const hkconv_class *class
         }
         for (size_t i=0;i<c.fixup_count && !c.failed;i++) if (!c.fixups[i].used)
             fail(&c,"Unmodeled pointer fixup at %u:%u",c.fixups[i].sec,c.fixups[i].from);
-        if (!c.failed) write_output(&c,output,output_size);
+        if (!c.failed) {
+            /* These traversal tables are no longer used by serialization. */
+            free(c.fixups); c.fixups=NULL;
+            free(c.objects); c.objects=NULL;
+            write_output(&c,output,output_size);
+        }
     }
     free(c.sections); free(c.fixups); free(c.virtuals); free(c.maps);
     free(c.objects); free(c.patches); free(c.data.p);
