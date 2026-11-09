@@ -24,8 +24,14 @@ if (( $# == 1 )); then
 else
     "$work/test-scripts"
 fi
-clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_security.c source/security.c -o "$work/test-security"
+clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource -D_DARWIN_C_SOURCE tests/test_security.c source/security.c -o "$work/test-security"
 "$work/test-security"
+clang -std=c11 -D_DARWIN_C_SOURCE -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_security_ui.c source/security.c -o "$work/test-security-ui"
+"$work/test-security-ui"
+clang -std=c11 -D_DARWIN_C_SOURCE -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_security_engine.c source/security.c -o "$work/test-security-engine"
+"$work/test-security-engine"
+clang -std=c11 -D_DARWIN_C_SOURCE -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_security_steam.c -o "$work/test-security-steam"
+"$work/test-security-steam"
 python3 tests/test_havok_schema.py
 python3 tests/test_launcher.py
 python3 tests/test_install.py

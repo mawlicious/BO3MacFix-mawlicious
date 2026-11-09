@@ -124,9 +124,9 @@ static bool log_network_rejection(atomic_uint *counter) {
 
 // Makes sure incoming checksums have our password
 install_hook_name(Sys_VerifyPacketChecksum, int, uint8_t *payload, int paylen) {
-    if (paylen >= 2) {
+    if (payload && paylen >= 2) {
         int newlen = paylen - 2;
-        uint16_t payload_checksum = *(uint16_t *)(payload + newlen);
+        uint16_t payload_checksum;memcpy(&payload_checksum,payload+newlen,sizeof(payload_checksum));
         uint16_t expected_checksum = (uint16_t)network_password ^ Sys_Checksum(payload, newlen);
         if (payload_checksum == expected_checksum)
             return newlen;
@@ -139,6 +139,7 @@ install_hook_name(Sys_VerifyPacketChecksum, int, uint8_t *payload, int paylen) {
 
 // Adds our password onto checksums
 install_hook_name(Sys_CheckSumPacketCopy, uint16_t, uint8_t *dest, uint8_t *payload, int paylen) {
+    if (!dest || !payload || paylen<0) return 0;
     uint16_t ret = orig_Sys_CheckSumPacketCopy(dest, payload, paylen);
     ret ^= (uint16_t)network_password;
     return ret;
@@ -150,6 +151,10 @@ install_hook_name(Sys_CheckSumPacketCopy, uint16_t, uint8_t *dest, uint8_t *payl
 // Adds password into lobby messages
 install_hook_name(LobbyMsgRW_PrepReadMsg, bool, void *msg) {
     bool orig = orig_LobbyMsgRW_PrepReadMsg(msg);
+    if (orig) {
+        int32_t type;memcpy(&type,(uint8_t *)msg+0x38,4);
+        if (!bo3_security_message_type(type)) return false;
+    }
     if (orig && network_password != 0 && ZBR_PREFIX_BYTE != 0) {
         uint8_t prefbyte1 = MSG_ReadByte(msg);
         uint8_t prefbyte2 = MSG_ReadByte(msg);
@@ -506,6 +511,9 @@ install_hook_name(CSteamAPIContext_Init, bool, CSteamAPIContext *ctx) {
     bool r = orig_CSteamAPIContext_Init(ctx);
     if (r == true) {
         init_steam_context(ctx);
+        printf(Version_Prefix " Steam security hooks: %d/3.\n",
+               bo3_install_security_steam(game_base_address,ctx->m_pSteamMatchmaking,ctx->m_pSteamNetworking));
+        printf(Version_Prefix " Security dvars applied: %d/2.\n",bo3_security_dvars(game_base_address));
         // populate our caches
         steam_friends_refresh_cache();
         steam_dlc_refresh_cache();
@@ -573,6 +581,7 @@ install_hook_name(hks_load_dll, bool, void *s, const char *filename, const char 
 }
 
 install_hook_name(CL_FirstSnapshot, void, void *arg) {
+    printf(Version_Prefix " Security dvars applied at first snapshot: %d/2.\n",bo3_security_dvars(game_base_address));
     bounce_dock_icon();
     return orig_CL_FirstSnapshot(arg);
 }
@@ -638,7 +647,8 @@ __attribute__((constructor)) static void dylib_main() {
         fprintf(stderr, Version_Prefix " Lobby join-info timeout patch failed (%d).\n", timeout_patch);
 
     int security_hooks = bo3_install_security(game_base_address);
-    printf(Version_Prefix " Security hardening hooks: %d/4 (negative = unsupported executable).\n", security_hooks);
+    printf(Version_Prefix " Security hardening hooks: %d/6 (negative = unsupported executable).\n", security_hooks);
+    printf(Version_Prefix " Engine security guards: %d/41.\n", bo3_install_security_ui(game_base_address));
     int stats_patch = bo3_install_stats_sync(game_base_address);
     if (stats_patch == 1)
         printf(Version_Prefix " Stats ACK diagnostics enabled.\n");
