@@ -27,6 +27,7 @@
 #include "script_fixes.h"
 #include "lobby_timeout.h"
 #include "stats_sync.h"
+#include "security.h"
 #include "memory_io.h"
 #include "dobby.h"
 #include "utilities.h"
@@ -223,6 +224,12 @@ install_hook_name(Live_SystemInfo, bool, int controllerIndex, int info, char *ou
 
 // Rejects instant messages from users who aren't friends if friends only is enabled.
 install_hook_name(dwInstantDispatchMessage, bool, uint64_t userId, int controllerIndex, uint8_t *data, int datalen) {
+    if (!bo3_security_im(data, datalen)) {
+        static atomic_uint rejected;
+        if (log_network_rejection(&rejected))
+            printf("[BO3MacFix-mawlicious security] Dropped malformed/blocked instant message\n");
+        return true;
+    }
     if (friends_only) {
         if (!steam_friends_with_user(userId) && // user isn't a friend
             userId != steam_id().id && // user isn't ourselves
@@ -630,6 +637,8 @@ __attribute__((constructor)) static void dylib_main() {
     else
         fprintf(stderr, Version_Prefix " Lobby join-info timeout patch failed (%d).\n", timeout_patch);
 
+    int security_hooks = bo3_install_security(game_base_address);
+    printf(Version_Prefix " Security hardening hooks: %d/4 (negative = unsupported executable).\n", security_hooks);
     int stats_patch = bo3_install_stats_sync(game_base_address);
     if (stats_patch == 1)
         printf(Version_Prefix " Stats ACK diagnostics enabled.\n");

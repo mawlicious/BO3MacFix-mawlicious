@@ -24,6 +24,8 @@ if (( $# == 1 )); then
 else
     "$work/test-scripts"
 fi
+clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isource tests/test_security.c source/security.c -o "$work/test-security"
+"$work/test-security"
 python3 tests/test_havok_schema.py
 python3 tests/test_launcher.py
 python3 tests/test_install.py
