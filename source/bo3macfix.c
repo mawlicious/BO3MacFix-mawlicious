@@ -648,7 +648,7 @@ __attribute__((constructor)) static void dylib_main() {
 
     int security_hooks = bo3_install_security(game_base_address);
     printf(Version_Prefix " Security hardening hooks: %d/6 (negative = unsupported executable).\n", security_hooks);
-    printf(Version_Prefix " Engine security guards: %d/40.\n", bo3_install_security_ui(game_base_address));
+    printf(Version_Prefix " Engine security guards: %d/41.\n", bo3_install_security_ui(game_base_address));
     int stats_patch = bo3_install_stats_sync(game_base_address);
     if (stats_patch == 1)
         printf(Version_Prefix " Stats ACK diagnostics enabled.\n");

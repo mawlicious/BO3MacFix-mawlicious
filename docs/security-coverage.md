@@ -60,7 +60,7 @@ not recovered original C source. Proprietary game code/dumps are not distributed
 | Friends-only invite/join restrictions | `+0x134b1b9`, `+0x134bbf3`, `+0x134bdb2` check the same optional friends-only policy before accept/action/send-info. Public operation does not enable friends-only automatically. |
 | MenuResponse and cached counterpart | `+0xf451d1`, `+0xf453b0`: validate menu/event bounds, reject badspawn, restrict remote kill/restart/end requests using entity number and host/campaign checks. Native server-ID checks remain. Guard shared index getters `+0x12a693e` (<64) and `+0x12a6d30` (<256). Other commented-out T7 cache hooks are not active defenses in the reference. |
 | Presence player-count guard | Native pack/unpack `+0x15312a1`: reject packed count >18 before decoding, validate stored/advertised counts before packing. The Mac routine's explicit unpack flag differs from Windows's reader-object ABI. |
-| Disable embedded Steam game server | Native `+0xf6956d` disabled, matching hkLiveSteam_InitServer. This removes its separate server initialization/advertisement path; Steam client matchmaking is separate. |
+| Disable embedded Steam game server | Native `+0xf6956d` disabled, matching hkLiveSteam_InitServer. The Mac-specific embedded-server frame pump `+0xf6908e` is also disabled so it cannot retry the disabled initialization every frame. This removes its separate server initialization/advertisement path; Steam client matchmaking is separate. |
 | Create friends-visible Steam lobby | Matchmaking slot 13 forces type 1, matching T7 CreateLobby. This concerns Steam lobby visibility, not enabling the mod's incoming friends-only filter. |
 | Disable voting / voice production | Apply g_allowvote=0 and maxvoicepacketsperframe=0 after Steam initialization and on first snapshot. Clear native dvar flags as T7 does; verify current values. Unknown/unregistered dvars are reported, not prematurely registered. |
 | Automatic UGC subscriptions | Default disabled at `+0xe4971e`, matching T7. Subscribe through Steam explicitly. BO3MACFIX_AUTOINSTALLMODS=1/true opts back into this behavior. |
@@ -82,7 +82,7 @@ still execute; this is not a sandbox for arbitrary downloaded mods.
 
 ## Verification and operational limits
 
-Startup reports the six common network hooks, 40 engine operations (33 hooks
+Startup reports the six common network hooks, 41 engine operations (34 hooks
 and seven instruction changes), three Steam hooks once its interfaces are
 initialized, and applied security dvars. Each new engine entry/dependency and
 instruction is byte-checked before installation. A mismatch or partial count is
@@ -108,3 +108,10 @@ Mac-specific nominee-array convention: its expected flag describes the
 preexisting output value on reads. The wrapper now uses the named nominee
 array's explicit 18-entry bound; zero-initialized destinations remain valid.
 The regression fixture covers 18 valid entries followed by an extra entry.
+
+The online test reached `CA_ACTIVE` in Shadows of Evil with both security dvars
+verified (2/2) and no new lobby-validation drops. It also exposed a Mac-only
+embedded-server retry loop after disabling its initializer; the frame pump is
+now disabled alongside initialization. This does not disable the Steam client
+callback pump or BO3 game hosting. Friend joining and public-lobby compatibility
+still need live coverage; solo gameplay is not evidence of public-lobby safety.
