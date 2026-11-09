@@ -26,7 +26,7 @@ Each run saves a separate log in `BO3MacFix-mawlicious/logs`.
 
 This build includes a subset of T7Patch-style network checks. It does **not**
 claim complete RCE protection or certify public lobbies as safe.
-[Security coverage and remaining gaps](docs/security-coverage.md).
+[T7Patch protection coverage and verification](docs/security-coverage.md).
 
 Memory optimizations reduce native navigation conversion scratch storage and
 cap oversized read-only asset stream buffers on large-block volumes. They do

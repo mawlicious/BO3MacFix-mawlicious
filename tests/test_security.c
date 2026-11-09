@@ -18,13 +18,18 @@ static bool engine_unsigned(void *msg, const char *key, uint32_t *value) {
 static bool engine_byte(void *msg, const char *key, uint8_t *value) {
     (void)msg;(void)key;(void)value;++calls;return success;
 }
+static bool element_found;
+static bool engine_element(void *msg,bool expected) { (void)msg;(void)expected;++calls;return element_found; }
 static uint8_t tls[32], args[512];
 static void *get_tls(void) { return tls; }
+static bool engine_array(void *msg,const char *key) { (void)msg;(void)key;++calls;return success; }
 int DobbyHook(void *address, void *replacement, void **original) {
     (void)address;
     if (replacement == (void *)command) *original = (void *)engine_command;
     else if (replacement == (void *)package_uint) *original = (void *)engine_unsigned;
     else if (replacement == (void *)package_uchar) *original = (void *)engine_byte;
+    else if (replacement==(void *)package_array) *original=(void *)engine_array;
+    else if (replacement==(void *)package_element) *original=(void *)engine_element;
     else *original = (void *)engine_scalar;
     return 0;
 }
@@ -69,8 +74,11 @@ int main(int argc, char **argv) {
         memcpy(base+0xf41d33,scalar,sizeof(scalar));
         memcpy(base+0xf41db0,scalar,sizeof(scalar));
         memcpy(base+0xf41fc0,scalar,sizeof(scalar));
+        const uint8_t element[]={0x55,0x48,0x89,0xe5,0x53,0x50,0x48,0x89,0xfb,0x8b,0x43,0x40};
+        memcpy(base+0xf4246d,element,sizeof(element));
+        { const unsigned char array[]={0x55,0x48,0x89,0xe5,0x41,0x56,0x53,0x49,0x89,0xf6,0x48,0x89,0xfb,0x8b,0x43,0x40,0x85,0xc0,0x74,0x17};memcpy(base+0xf423e3,array,sizeof(array)); }
     }
-    assert(bo3_install_security((uintptr_t)base)==4);
+    assert(bo3_install_security((uintptr_t)base)==6);
     engine_tls=get_tls;
     uint8_t *args_pointer=args;memcpy(tls+24,&args_pointer,sizeof(args_pointer));
     int count=1;memcpy(args+0x64,&count,4);
@@ -83,13 +91,36 @@ int main(int argc, char **argv) {
     base[0x6939a14]=2;assert(!checked_command(0,NULL) && calls==2);
     int nesting=-1;memcpy(args,&nesting,4);assert(checked_command(0,NULL) && calls==2);
     nesting=8;memcpy(args,&nesting,4);assert(checked_command(0,NULL) && calls==2);
+    unsigned char lobby[0x44]={0};lobby[0x40]=2;
     int32_t value=-1;
-    assert(!package_int(NULL,"lobbytype",&value));
-    value=2;assert(package_int(NULL,"lobbytype",&value));
-    uint32_t u=3;assert(!package_uint(NULL,"srclobbytype",&u));
+    assert(!package_int(lobby,"lobbytype",&value));
+    value=2;assert(package_int(lobby,"lobbytype",&value));
+    uint32_t u=3;assert(!package_uint(lobby,"srclobbytype",&u));
     uint8_t nat=255;assert(package_uchar(NULL,"nattype",&nat) && nat==4);
     nat=255;assert(package_uchar(NULL,"other",&nat) && nat==255);
     success=false;nat=255;assert(!package_uchar(NULL,"nattype",&nat) && nat==255);
+    success=true;
+    int overflow=0;
+    element_found=true;
+    assert(package_element(lobby,true));
+    assert(!package_element(lobby,false));
+    memcpy(&overflow,lobby,4);assert(overflow==1);
+    lobby[0x40]=1;memset(lobby,0,4);
+    assert(package_element(lobby,false)); /* writer uses false to end array */
+    memcpy(&overflow,lobby,4);assert(!overflow);
+    value=200;assert(package_int(lobby,"clientcount",&value) && value==200);
+    lobby[0x40]=2;value=19;assert(!package_int(lobby,"clientcount",&value) && !value);
+    u=0;assert(!package_uint(lobby,"datamask",&u));
+    base[0x6939a14]=0;u=512;assert(!package_uint(lobby,"datamask",&u));
+    base[0x6939a14]=1;u=512;assert(package_uint(lobby,"datamask",&u));
+    im[1]='f';memset(im+2,0,100);assert(!bo3_security_im(im,102));
+    im[2]=1;assert(bo3_security_im(im,102));assert(!bo3_security_im(im,101));
+    memset(lobby,0,4);lobby[0x40]=2;success=true;element_found=true;
+    assert(package_array(lobby,"nomineelist"));
+    for (int i=0;i<18;++i) assert(package_element(lobby,false)); /* zero-initialized destination */
+    assert(!package_element(lobby,false) && lobby[0]==1);
+    assert(package_array(lobby,"clientlist"));
+    assert(!package_element(lobby,false)); /* counted arrays still enforce expected */
     base[0xe19016]^=1;assert(bo3_install_security((uintptr_t)base)==-1);
     munmap(base,size);
     puts("PASS: command/IM bounds, scalar validation, TLS command hook, original forwarding, executable guards");
