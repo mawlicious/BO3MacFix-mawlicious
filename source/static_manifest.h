@@ -10,11 +10,14 @@ typedef struct {
     uint32_t slot, trampoline;
 } bo3_static_entry;
 #define BO3_STATIC_MARKER_OFFSET 0x1964080u
-#define BO3_STATIC_MARKER "BO3MACFIX-MAWLICIOUS-STATIC-1:b45b7fb747d7d36449e4c76f"
-#define BO3_STATIC_PATCHED_SHA256 "3a562dd7ab1aa6869e5db05b98ec764afd1ec9a29cae578b14be89ca31992047"
-#define BO3_STATIC_ENTRY_COUNT 105u
+#define BO3_STATIC_MARKER "BO3MACFIX-MAWLICIOUS-STATIC-1:ade5b69e50274248e568f39b"
+#define BO3_STATIC_PATCHED_SHA256 "6497508620733945feb5f406a115d274de7969816968eeb351a67a48f9c27cfd"
+#define BO3_STATIC_ENTRY_COUNT 108u
 static const bo3_static_entry bo3_static_entries[] = {
     {2, 0x11a7552u, 1u, 0x0u, 0x0u},
+    {2, 0xfeb492u, 1u, 0x0u, 0x0u},
+    {2, 0xd05c08u, 1u, 0x0u, 0x0u},
+    {2, 0x2aa69u, 4u, 0x0u, 0x0u},
     {2, 0x1315ffcu, 4u, 0x0u, 0x0u},
     {2, 0xd50e60u, 1u, 0x0u, 0x0u},
     {2, 0x11e57aeu, 1u, 0x0u, 0x0u},

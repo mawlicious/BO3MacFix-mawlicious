@@ -12,7 +12,7 @@ folder="$stage/$name"
 mkdir -p "$folder/natives"
 cp "$name.dylib" launcher/AppBundleExe "installer/Install_$name" "$folder/"
 cp -R assets/zone assets/Physics "$folder/"
-cp ASSET_SHA256SUMS ASSETS.md LICENSE.txt README.md assets/static-patch.txt "$folder/"
+cp ASSET_SHA256SUMS ASSETS.md CHANGELOG.md LICENSE.txt README.md assets/static-patch.txt "$folder/"
 cp -R docs "$folder/"
 for action in Install Uninstall; do
     mode=$(echo "$action" | tr '[:upper:]' '[:lower:]')

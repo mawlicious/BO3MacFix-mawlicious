@@ -19,6 +19,9 @@
 #include <sys/resource.h>
 #include <time.h>
 #include "perf_telemetry.h"
+#include "metal_stats.h"
+#include "cpu_sched.h"
+#include "freeze_sampler.h"
 #include "versioninfo.h"
 #define Version_Prefix "[BO3MacFix-mawlicious " MACFIX_VERSION "]"
 
@@ -28,7 +31,8 @@
 static IMP orig_nextDrawable;
 static pthread_mutex_t perf_lock = PTHREAD_MUTEX_INITIALIZER;
 static double interval_s = 30.0;
-static uint64_t last_frame_ns, window_start_ns, drawable_wait_ns;
+static uint64_t last_frame_ns; /* heartbeat, read atomically by the freeze sampler */
+static uint64_t window_start_ns, drawable_wait_ns;
 static float samples[MAX_SAMPLES];
 static unsigned sample_count, frames, over_33, over_50, over_100, over_250;
 static double cpu_start_s;
@@ -79,6 +83,15 @@ static void report_locked(uint64_t t) {
 }
 
 static id hooked_nextDrawable(id self, SEL cmd) {
+    static __thread int promoted;
+    if (!promoted) {
+        promoted = 1;
+        int r = bo3_promote_current_thread();
+        char name[64] = "";
+        pthread_getname_np(pthread_self(), name, sizeof(name));
+        if (r != -1) printf(Version_Prefix " Presenting thread '%s' QoS promotion: %d.\n", name, r);
+    }
+    bo3_metal_stats_frame();
     uint64_t start = now_ns();
     id drawable = ((id (*)(id, SEL))orig_nextDrawable)(self, cmd);
     uint64_t end = now_ns();
@@ -100,7 +113,7 @@ static id hooked_nextDrawable(id self, SEL cmd) {
         window_start_ns = start;
         cpu_start_s = process_cpu_seconds();
     }
-    last_frame_ns = start;
+    __atomic_store_n(&last_frame_ns, start, __ATOMIC_RELAXED);
     if ((start - window_start_ns) / 1e9 >= interval_s) report_locked(start);
     pthread_mutex_unlock(&perf_lock);
     return drawable;
@@ -114,5 +127,8 @@ int bo3_install_perf_telemetry(void) {
     Method m = class_getInstanceMethod([CAMetalLayer class], @selector(nextDrawable));
     if (!m) return -1;
     orig_nextDrawable = method_setImplementation(m, (IMP)hooked_nextDrawable);
-    return orig_nextDrawable ? 1 : -2;
+    if (!orig_nextDrawable) return -2;
+    int freeze = bo3_install_freeze_sampler(&last_frame_ns);
+    printf(Version_Prefix " Freeze sampler: %s (%d).\n", freeze == 1 ? "enabled" : "off", freeze);
+    return 1;
 }

@@ -142,6 +142,10 @@ int main(int argc, char **argv) {
         newEnvironment[@"DYLD_INSERT_LIBRARIES"] = [dylibUrl path];
     }
     newEnvironment[@"SteamAppId"] = @"311210";
+    // Opt-in freeze diagnostics without Steam launch options.
+    NSString *freezeFlag = [[gameProc.currentDirectoryURL URLByAppendingPathComponent:@"../../../BO3MacFix-mawlicious/enable-freeze-log"] path];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:freezeFlag] && !newEnvironment[@"BO3MACFIX_FREEZELOG"])
+        newEnvironment[@"BO3MACFIX_FREEZELOG"] = @"1";
     // parse our arguments and figure out which ones we send to the new process vs which ones we 
     NSMutableArray *newArguments = [[NSMutableArray alloc] init];
     for (int i = 1; i < argc; i++) {

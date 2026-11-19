@@ -15,9 +15,9 @@ CC       := $(CLANG) -isysroot $(SYSROOT) -arch $(ARCH) -mmacosx-version-min=$(O
 CFLAGS  = -O1 -Wall -g -I include/ -I src/ -fvisibility=hidden -DBO3_USE_PATCH_LAYER
 LDFLAGS = -shared -Wl,-undefined -Wl,dynamic_lookup -Llib -ldobby
 
-FRAMEWORKS = -framework CoreFoundation -framework IOKit -framework Foundation -framework QuartzCore
+FRAMEWORKS = -framework CoreFoundation -framework IOKit -framework Foundation -framework QuartzCore -framework Metal
 
-SOURCES = source/bo3macfix.c source/bo3macnative.m source/utilities.c source/steam.c source/exports.c source/havok_convert.c source/nav_convert.c source/script_fixes.c source/lobby_timeout.c source/stats_sync.c source/stats_sync_runtime.c source/memory_io.c source/security.c source/security_runtime.c source/security_ui.c source/security_steam.c source/perf_telemetry.m source/cpu_sched.c source/patch_layer.c
+SOURCES = source/bo3macfix.c source/bo3macnative.m source/utilities.c source/steam.c source/exports.c source/havok_convert.c source/nav_convert.c source/script_fixes.c source/lobby_timeout.c source/stats_sync.c source/stats_sync_runtime.c source/memory_io.c source/security.c source/security_runtime.c source/security_ui.c source/security_steam.c source/perf_telemetry.m source/cpu_sched.c source/patch_layer.c source/metal_stats.m source/freeze_sampler.c
 
 all: $(TARGET)
 

@@ -21,7 +21,9 @@ BO3MacFix, Wine, Python, Xcode, or another download. Apple Silicon Macs need
 Rosetta because the game and mod use Intel machine code. If macOS blocks the
 installer, use Finder's **Open** action and approve it in Privacy & Security.
 
-The window title and top-right in-game label show `BO3MacFix-mawlicious`.
+The window title and top-right in-game label show `BO3MacFix-mawlicious`
+and the version (for example `v5`). See [CHANGELOG.md](CHANGELOG.md) for what
+each version contains.
 Each run saves a separate log in `BO3MacFix-mawlicious/logs`.
 
 This build includes a subset of T7Patch-style network checks. It does **not**
@@ -34,7 +36,9 @@ launch) so Rosetta keeps its ahead-of-time translation, and idle job-queue
 threads no longer busy-spin. Measured in Shadows of Evil on an M4: ~+6% FPS
 with ~16% less CPU; menus use less than half the CPU. Session logs include
 frame-time statistics. [Details and measurements](docs/performance.md).
-Set `BO3MACFIX_STATIC=0` to run the original executable instead.
+Set `BO3MACFIX_STATIC=0` to run the original executable instead. To record
+where the game is stuck during freezes, create an empty file named
+`enable-freeze-log` in the `BO3MacFix-mawlicious` folder.
 
 Memory optimizations reduce native navigation conversion scratch storage and
 cap oversized read-only asset stream buffers on large-block volumes. They do

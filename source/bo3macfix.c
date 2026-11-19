@@ -32,6 +32,7 @@
 #include "memory_io.h"
 #include "perf_telemetry.h"
 #include "cpu_sched.h"
+#include "metal_stats.h"
 #include "dobby.h"
 #include "utilities.h"
 #include "offsets.h"
@@ -629,7 +630,7 @@ __attribute__((constructor)) static void dylib_main() {
     // don't want to inject into defaults, Aspyr launcher or Steamwebhelper
     const char *image_path = _dyld_get_image_name(0);
     const char *image_name = filename_from_path(image_path);
-    if (strcmp(image_name, "CoDBlkOps3_Exe") != 0 && strcmp(image_name, "CoDBlkOps3_Exe_mawlicious") != 0)
+    if (strncmp(image_name, "CoDBlkOps3_Exe", 14) != 0)
         return;
 
     // Keep the session log useful even if the game crashes before exit.
@@ -647,9 +648,16 @@ __attribute__((constructor)) static void dylib_main() {
     printf(Version_Prefix " Frame-time telemetry: %s (%d).\n",
            perf_log == 1 ? "enabled" : "off", perf_log);
 
+    int render_qos = bo3_install_render_thread_qos();
+    if (render_qos) printf(Version_Prefix " Thread QoS experiment: render thread hook %d.\n", render_qos);
+
+    int metal_stats = bo3_install_metal_stats();
+    if (metal_stats) printf(Version_Prefix " Metal statistics: %d.\n", metal_stats);
+
     int event_wait = bo3_install_event_wait_fix(game_base_address);
-    printf(Version_Prefix " Event wait spin fix: JQ workers %s, main render wait %s (%d).\n",
-           event_wait > 0 && (event_wait & 1) ? "on" : "off", event_wait > 0 && (event_wait & 2) ? "on" : "off", event_wait);
+    printf(Version_Prefix " Spin fixes: JQ worker wait %s, render idle wait %s, main render wait %s, context lock spin %s (%d).\n",
+           event_wait > 0 && (event_wait & 1) ? "on" : "off", event_wait > 0 && (event_wait & 8) ? "on" : "off",
+           event_wait > 0 && (event_wait & 2) ? "on" : "off", event_wait > 0 && (event_wait & 4) ? "removed" : "kept", event_wait);
 
     int timeout_patch = install_lobby_info_timeout(game_base_address);
     if (timeout_patch == 1)
