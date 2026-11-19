@@ -15,9 +15,11 @@
 // Fix (default on, BO3MACFIX_EVENTWAIT=0 disables): the JQ worker passes 2 ms,
 // i.e. it actually sleeps until work is queued (SetEvent) or 2 ms pass.
 //
-// Experiment (default off, BO3MACFIX_MAINWAIT=1 enables): the main thread's
-// wait for renderCompletedEvent (0xd05c07) does the same. Kept separate
-// because it sits on the frame's critical path.
+// The same applies (default on) to the D3D render thread's idle wait for work
+// (0xfeb491, BO3MACFIX_RENDERWAIT=0 disables) and to the main thread's wait
+// for renderCompletedEvent (0xd05c07, BO3MACFIX_MAINWAIT=0 disables).
+// Alternating in-map runs: same frame rate (77.7/86.5 vs 86.9/81.9 FPS) with
+// the main thread's CPU use down from ~70% to ~48%.
 #include "cpu_sched.h"
 #include "dobby.h"
 #include "patch_layer.h"
@@ -58,7 +60,19 @@ int bo3_install_event_wait_fix(uint64_t base) {
         result = patch_wait_immediate(base, 0x11a7551, jq, sizeof(jq), 0x11a754d);
         if (result < 0) return result;
     }
-    if (env_flag("BO3MACFIX_MAINWAIT", 0)) {
+    if (env_flag("BO3MACFIX_RENDERWAIT", 1)) {
+        /* call 0xd05eb7; mov edi,1; call 0xd06061 (backend event wait) */
+        static const uint8_t renderwait[] = {0xe8, 0x26, 0xaa, 0xd1, 0xff, 0xbf, 0x01, 0x00, 0x00, 0x00,
+                                             0xe8, 0xc6, 0xab, 0xd1, 0xff};
+        static const uint8_t mov_edi_one[] = {0xbf, 0x01, 0x00, 0x00, 0x00};
+        if (bo3_orig_memcmp((const void *)(uintptr_t)(base + 0xfeb48c), renderwait, sizeof(renderwait)) ||
+            bo3_orig_memcmp((const void *)(uintptr_t)(base + 0xfeb491), mov_edi_one, sizeof(mov_edi_one)))
+            return -5;
+        uint8_t two = 0x02;
+        if (DobbyCodePatch((void *)(uintptr_t)(base + 0xfeb492), &two, 1) != 0) return -6;
+        result |= 8;
+    }
+    if (env_flag("BO3MACFIX_MAINWAIT", 1)) {
         /* mov rdi,[renderCompletedEvent]; mov esi,1; call 0x109bde */
         static const uint8_t mainwait[] = {0x48, 0x8b, 0x3d, 0x11, 0xf5, 0x64, 0x01, 0xbe, 0x01, 0x00,
                                            0x00, 0x00, 0xe8, 0xcd, 0x3f, 0x40, 0xff};

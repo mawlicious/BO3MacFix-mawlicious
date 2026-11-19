@@ -655,9 +655,9 @@ __attribute__((constructor)) static void dylib_main() {
     if (metal_stats) printf(Version_Prefix " Metal statistics: %d.\n", metal_stats);
 
     int event_wait = bo3_install_event_wait_fix(game_base_address);
-    printf(Version_Prefix " Spin fixes: JQ worker wait %s, main render wait %s, context lock spin %s (%d).\n",
-           event_wait > 0 && (event_wait & 1) ? "on" : "off", event_wait > 0 && (event_wait & 2) ? "on" : "off",
-           event_wait > 0 && (event_wait & 4) ? "removed" : "kept", event_wait);
+    printf(Version_Prefix " Spin fixes: JQ worker wait %s, render idle wait %s, main render wait %s, context lock spin %s (%d).\n",
+           event_wait > 0 && (event_wait & 1) ? "on" : "off", event_wait > 0 && (event_wait & 8) ? "on" : "off",
+           event_wait > 0 && (event_wait & 2) ? "on" : "off", event_wait > 0 && (event_wait & 4) ? "removed" : "kept", event_wait);
 
     int timeout_patch = install_lobby_info_timeout(game_base_address);
     if (timeout_patch == 1)
