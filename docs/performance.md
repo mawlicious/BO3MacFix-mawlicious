@@ -178,6 +178,17 @@ if a thread resume ever fails.
   binds and 645 fragment sampler binds. Only about 5% of binds repeat
   already-bound state, so filtering them would save at most about 2% of
   render-thread time.
+* **Other CPU texture conversions.** With the BC 3D fix, a counter on
+  Aspyr's converter (`0xd8bf7`) recorded no conversions at all through the
+  menu, the Shadows of Evil load and gameplay (with the fix off: 1,008 BC6H
+  decodes, 1.2 s, in the menu alone). The remaining conversions (RGB32
+  formats, B8G8R8X8, D24S8 on GPUs without `Depth24Unorm_Stencil8`) are
+  needed and were not seen.
+* **Pipeline state creation.** The `[perf]` line now counts synchronous
+  render-pipeline and library compiles. Loading Shadows of Evil created 1,859
+  pipeline states in 449 ms in total (longest 6 ms, Metal's shader cache
+  warm); during play only a few were created, each well under 1 ms. Not a
+  hitch source.
 * **Display sleep.** The game already holds an SDL
   `PreventUserIdleDisplaySleep` assertion; no change needed.
 * Smaller render-path candidates found by decompiling Aspyr's draw path:

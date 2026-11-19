@@ -6,10 +6,15 @@
 // written to the session log; long frames (>= 250 ms) are also logged as they
 // happen so freezes can be lined up with the surrounding game output.
 //
+// Each line also counts synchronous Metal compiles in the interval (render
+// pipeline states and libraries built from source) with total and longest
+// time, so hitches from first-use pipeline creation show up.
+//
 // Disable with BO3MACFIX_PERFLOG=0. Overhead: one clock read and one array
 // store per frame; sorting happens once per interval.
 #import <Foundation/Foundation.h>
 #import <QuartzCore/CAMetalLayer.h>
+#import <Metal/Metal.h>
 #include <mach/mach.h>
 #include <objc/runtime.h>
 #include <pthread.h>
@@ -38,6 +43,13 @@ static unsigned sample_count, frames, over_33, over_50, over_100, over_250;
 static double cpu_start_s;
 static unsigned hitch_logged;
 
+/* Synchronous Metal compiles (render pipeline states, libraries from source)
+ * per interval: count, total and longest time. */
+enum { COMPILE_PSO, COMPILE_LIB, COMPILE_KINDS };
+static IMP orig_pso, orig_pso_refl, orig_lib_src;
+static unsigned compile_count[COMPILE_KINDS];
+static uint64_t compile_ns[COMPILE_KINDS], compile_max_ns[COMPILE_KINDS];
+
 static uint64_t now_ns(void) { return clock_gettime_nsec_np(CLOCK_UPTIME_RAW); }
 
 static double process_cpu_seconds(void) {
@@ -64,6 +76,41 @@ static float percentile(unsigned n, double p) {
     return samples[i < n ? i : n - 1];
 }
 
+static void count_compile(int kind, uint64_t start) {
+    uint64_t ns = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - start;
+    pthread_mutex_lock(&perf_lock);
+    compile_count[kind]++;
+    compile_ns[kind] += ns;
+    if (ns > compile_max_ns[kind]) compile_max_ns[kind] = ns;
+    pthread_mutex_unlock(&perf_lock);
+}
+
+static id hooked_pso(id self, SEL cmd, id desc, NSError **error) {
+    uint64_t t = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    id r = ((id (*)(id, SEL, id, NSError **))orig_pso)(self, cmd, desc, error);
+    count_compile(COMPILE_PSO, t);
+    return r;
+}
+
+static id hooked_pso_refl(id self, SEL cmd, id desc, NSUInteger options, id *reflection, NSError **error) {
+    uint64_t t = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    id r = ((id (*)(id, SEL, id, NSUInteger, id *, NSError **))orig_pso_refl)(self, cmd, desc, options, reflection, error);
+    count_compile(COMPILE_PSO, t);
+    return r;
+}
+
+static id hooked_lib_src(id self, SEL cmd, id source, id options, NSError **error) {
+    uint64_t t = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    id r = ((id (*)(id, SEL, id, id, NSError **))orig_lib_src)(self, cmd, source, options, error);
+    count_compile(COMPILE_LIB, t);
+    return r;
+}
+
+static void hook_device(Class cls, SEL sel, IMP imp, IMP *orig) {
+    Method m = class_getInstanceMethod(cls, sel);
+    if (m) *orig = method_setImplementation(m, imp);
+}
+
 static void report_locked(uint64_t t) {
     double span = (t - window_start_ns) / 1e9, cpu = process_cpu_seconds();
     unsigned n = sample_count;
@@ -71,10 +118,16 @@ static void report_locked(uint64_t t) {
     for (unsigned i = 0; i < n; i++) sum += samples[i];
     qsort(samples, n, sizeof(float), cmp_float);
     printf(Version_Prefix " [perf] %.1fs frames=%u fps=%.1f avg=%.2fms p50=%.2f p95=%.2f p99=%.2f max=%.1f "
-           ">33ms=%u >50ms=%u >100ms=%u >250ms=%u drawableWait=%.2fms cpu=%.0f%% footprint=%.2fGB\n",
+           ">33ms=%u >50ms=%u >100ms=%u >250ms=%u drawableWait=%.2fms cpu=%.0f%% footprint=%.2fGB "
+           "pso=%u/%.0fms(max %.0f) shaderlib=%u/%.0fms(max %.0f)\n",
            span, frames, frames / span, n ? sum / n : 0, percentile(n, 0.5), percentile(n, 0.95),
            percentile(n, 0.99), n ? samples[n - 1] : 0, over_33, over_50, over_100, over_250,
-           frames ? drawable_wait_ns / 1e6 / frames : 0, (cpu - cpu_start_s) / span * 100, footprint_gb());
+           frames ? drawable_wait_ns / 1e6 / frames : 0, (cpu - cpu_start_s) / span * 100, footprint_gb(),
+           compile_count[COMPILE_PSO], compile_ns[COMPILE_PSO] / 1e6, compile_max_ns[COMPILE_PSO] / 1e6,
+           compile_count[COMPILE_LIB], compile_ns[COMPILE_LIB] / 1e6, compile_max_ns[COMPILE_LIB] / 1e6);
+    memset(compile_count, 0, sizeof(compile_count));
+    memset(compile_ns, 0, sizeof(compile_ns));
+    memset(compile_max_ns, 0, sizeof(compile_max_ns));
     window_start_ns = t;
     cpu_start_s = cpu;
     sample_count = frames = over_33 = over_50 = over_100 = over_250 = 0;
@@ -128,6 +181,14 @@ int bo3_install_perf_telemetry(void) {
     if (!m) return -1;
     orig_nextDrawable = method_setImplementation(m, (IMP)hooked_nextDrawable);
     if (!orig_nextDrawable) return -2;
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    if (device) {
+        Class cls = object_getClass(device);
+        hook_device(cls, @selector(newRenderPipelineStateWithDescriptor:error:), (IMP)hooked_pso, &orig_pso);
+        hook_device(cls, @selector(newRenderPipelineStateWithDescriptor:options:reflection:error:), (IMP)hooked_pso_refl,
+                    &orig_pso_refl);
+        hook_device(cls, @selector(newLibraryWithSource:options:error:), (IMP)hooked_lib_src, &orig_lib_src);
+    }
     int freeze = bo3_install_freeze_sampler(&last_frame_ns);
     printf(Version_Prefix " Freeze sampler: %s (%d).\n", freeze == 1 ? "enabled" : "off", freeze);
     return 1;
