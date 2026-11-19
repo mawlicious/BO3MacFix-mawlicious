@@ -21,7 +21,9 @@ BO3MacFix, Wine, Python, Xcode, or another download. Apple Silicon Macs need
 Rosetta because the game and mod use Intel machine code. If macOS blocks the
 installer, use Finder's **Open** action and approve it in Privacy & Security.
 
-The window title and top-right in-game label show `BO3MacFix-mawlicious`.
+The window title and top-right in-game label show `BO3MacFix-mawlicious`
+and the version (for example `v5`). See [CHANGELOG.md](CHANGELOG.md) for what
+each version contains.
 Each run saves a separate log in `BO3MacFix-mawlicious/logs`.
 
 This build includes a subset of T7Patch-style network checks. It does **not**
