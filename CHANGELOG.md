@@ -4,6 +4,16 @@ BO3MacFix-mawlicious versions are numbered v1, v2, ... The in-game top-right
 label and the session logs show `BO3MacFix-mawlicious vN`. Releases up to v4
 used longer tags; they are listed below.
 
+## v6 — No more multi-second freezes from reflection-probe streaming
+
+- Shadows of Evil streams its BC6H-compressed reflection probe volumes (3D
+  textures) in and out as you move around the map. Aspyr's layer decoded every
+  BC-compressed 3D texture on the CPU (under Rosetta) into a format 8× larger,
+  freezing the game for 2.5–4 s each time. Apple GPUs read BC formats in 3D
+  textures directly, so they now stay compressed: no decode, about 0.9 GB less
+  memory at the Shadows of Evil spawn. `BO3MACFIX_BC3D=0` restores the old
+  behaviour.
+
 ## v5 — Remaining Aspyr spin-waits removed, freeze sampler (PR #9)
 
 - Aspyr's D3D11 device-context lock no longer spins up to 100,000

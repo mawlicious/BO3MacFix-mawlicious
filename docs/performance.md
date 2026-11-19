@@ -109,6 +109,30 @@ An alternating 8-run test in Shadows of Evil (windowed, spawn, mean of two
 Run-to-run variance between sessions is about ±5%, so only differences
 that repeat across alternating runs are treated as real.
 
+### 4. BC-compressed 3D textures were decoded on the CPU (multi-second freezes)
+
+A 22-minute Shadows of Evil session with the freeze sampler had four
+mid-round freezes of 2.5, 3.6, 4.0 and 3.7 s. Each followed
+`reflectionProbes:volume0_state0_reflection_probes_60f6e17c UNLOADED -> LOADED`:
+the map streams its reflection probe volumes as the player moves. During each
+freeze a job worker was in Aspyr's BC6H decoder (`0xd7426`, called from
+`0xd8bf7` via the texture upload at `0x645e0`) and then in Apple's driver
+re-compressing the result inside `-replaceRegion:`, while the main thread
+waited on a lock.
+
+Aspyr maps DXGI formats with `0xd8630`, except for 3D textures, which use
+`0xd8a98`. That function replaces every BC format (BC1–BC7) with an
+uncompressed one (BC6H becomes `RGBA16Float`, 8 bytes per texel instead of
+1), so every upload is decoded on the CPU. Apple GPUs support BC formats in
+3D textures: a test reading back BC1/2/3/3-sRGB/4/5/6H-U/6H-S/7 texels at
+five sizes up to 128×128×32 from a 3D texture and from a 2D array holding the
+same blocks got bit-identical results, natively and under Rosetta (M4).
+
+Under Rosetta the mod now routes `0xd8a98` to `0xd8630`, so 3D textures keep
+their BC format and uploads are plain copies. Uncompressed formats map the
+same either way. At the Shadows of Evil spawn the memory footprint was
+7.24 GB instead of 8.13 GB. `BO3MACFIX_BC3D=0` restores Aspyr's behaviour.
+
 ## Results
 
 Through the installed launcher, fullscreen, Shadows of Evil solo, standing at
