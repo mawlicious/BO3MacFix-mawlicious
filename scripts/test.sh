@@ -34,5 +34,6 @@ clang -std=c11 -D_DARWIN_C_SOURCE -Wall -Wextra -Werror -fsanitize=address,undef
 "$work/test-security-steam"
 python3 tests/test_havok_schema.py
 python3 tests/test_launcher.py
+python3 tests/test_static_patch.py
 python3 tests/test_install.py
 python3 tests/test_nav_cache.py

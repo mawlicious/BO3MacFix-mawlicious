@@ -1,4 +1,5 @@
 #include "security.h"
+#include "patch_layer.h"
 #include "dobby.h"
 #include <string.h>
 #include <strings.h>
@@ -295,15 +296,15 @@ static const struct { size_t offset; unsigned char bytes[5]; } lengths[]={
 };
 int bo3_install_security_ui(uint64_t base) {
     for (size_t i=0;i<sizeof(hooks)/sizeof(*hooks);++i)
-        if (memcmp((void *)(uintptr_t)(base+hooks[i].offset),hooks[i].bytes,20)) return -1;
+        if (bo3_orig_memcmp((void *)(uintptr_t)(base+hooks[i].offset),hooks[i].bytes,20)) return -1;
     static const unsigned char dep_f75cfb[]={0x55,0x48,0x89,0xe5,0x48,0x63,0xc2,0x48,0x8d,0x0d,0xb7,0x66,0x66,0x11,0x48,0x63,0x15,0xb0,0x66,0x66};
-    if (memcmp((void *)(uintptr_t)(base+0xf75cfb),dep_f75cfb,20)) return -1;
+    if (bo3_orig_memcmp((void *)(uintptr_t)(base+0xf75cfb),dep_f75cfb,20)) return -1;
     static const unsigned char dep_e3152b[]={0x55,0x48,0x89,0xe5,0xe8,0x53,0x6d,0x60,0x00,0x48,0x89,0xc7,0x5d,0xe9,0xf1,0x2c,0x48,0x00,0x55,0x48};
-    if (memcmp((void *)(uintptr_t)(base+0xe3152b),dep_e3152b,20)) return -1;
+    if (bo3_orig_memcmp((void *)(uintptr_t)(base+0xe3152b),dep_e3152b,20)) return -1;
     for (size_t i=0;i<sizeof(lengths)/sizeof(*lengths);++i)
-        if (memcmp((void *)(uintptr_t)(base+lengths[i].offset),lengths[i].bytes,5)) return -1;
+        if (bo3_orig_memcmp((void *)(uintptr_t)(base+lengths[i].offset),lengths[i].bytes,5)) return -1;
     static const unsigned char read_byte_sig[]={0x55,0x48,0x89,0xe5,0x48,0x63,0x47,0x24,0x8b,0x4f,0x1c,0x8b,0x57,0x20,0x01,0xca,0x39,0xd0,0x7d,0x0d};
-    if (memcmp((void *)(uintptr_t)(base+0x1247989),read_byte_sig,20)) return -1;
+    if (bo3_orig_memcmp((void *)(uintptr_t)(base+0x1247989),read_byte_sig,20)) return -1;
     image=base;
     read_byte=(void *)(uintptr_t)(base+0x1247989);
     server_arg=(void *)(uintptr_t)(base+0xf75cfb);
@@ -332,9 +333,9 @@ static int apply_security_dvars(void *(*find)(const char *),void *(*set)(const c
 }
 int bo3_security_dvars(uint64_t base) {
     static const unsigned char dep_f9ff7c[]={0x48,0x85,0xff,0x74,0x32,0x0f,0xbe,0x07,0x85,0xc0,0x74,0x2b};
-    if (memcmp((void *)(uintptr_t)(base+0xf9ff7c),dep_f9ff7c,12)) return -1;
+    if (bo3_orig_memcmp((void *)(uintptr_t)(base+0xf9ff7c),dep_f9ff7c,12)) return -1;
     static const unsigned char dep_fa3386[]={0x55,0x48,0x89,0xe5,0x44,0x0f,0xb6,0xc2,0x31,0xd2,0x31,0xc9};
-    if (memcmp((void *)(uintptr_t)(base+0xfa3386),dep_fa3386,12)) return -1;
+    if (bo3_orig_memcmp((void *)(uintptr_t)(base+0xfa3386),dep_fa3386,12)) return -1;
     void *(*find)(const char *)=(void *)(uintptr_t)(base+0xf9ff7c);
     void *(*set)(const char *,const char *,bool)=(void *)(uintptr_t)(base+0xfa3386);
     return apply_security_dvars(find,set);

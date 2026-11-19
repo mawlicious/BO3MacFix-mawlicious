@@ -1,4 +1,5 @@
 #include "lobby_timeout.h"
+#include "patch_layer.h"
 #include "dobby.h"
 #include <string.h>
 
@@ -18,8 +19,8 @@ int install_lobby_info_timeout(uint64_t game_base) {
     };
     uint8_t *site = (uint8_t *)(uintptr_t)(game_base + 0x1315ff6);
     const void *read = (const void *)(uintptr_t)(game_base + 0xda1930);
-    if (memcmp(site, registration, sizeof(registration)) != 0 ||
-        memcmp(read, timeout_read, sizeof(timeout_read)) != 0)
+    if (bo3_orig_memcmp(site, registration, sizeof(registration)) != 0 ||
+        bo3_orig_memcmp(read, timeout_read, sizeof(timeout_read)) != 0)
         return -1;
 
     /* Only replace the four-byte default, before the game's registration runs. */

@@ -28,6 +28,14 @@ This build includes a subset of T7Patch-style network checks. It does **not**
 claim complete RCE protection or certify public lobbies as safe.
 [T7Patch protection coverage and verification](docs/security-coverage.md).
 
+Performance: the launcher runs a pre-patched copy of the game executable
+(`CoDBlkOps3_Exe_mawlicious`, built locally from your own copy on first
+launch) so Rosetta keeps its ahead-of-time translation, and idle job-queue
+threads no longer busy-spin. Measured in Shadows of Evil on an M4: ~+6% FPS
+with ~16% less CPU; menus use less than half the CPU. Session logs include
+frame-time statistics. [Details and measurements](docs/performance.md).
+Set `BO3MACFIX_STATIC=0` to run the original executable instead.
+
 Memory optimizations reduce native navigation conversion scratch storage and
 cap oversized read-only asset stream buffers on large-block volumes. They do
 not lower graphics quality. [Measurements and limitations](docs/memory-investigation.md).
@@ -38,6 +46,7 @@ script revision; Workshop updates with different bytes are left intact.
 [Details and remaining map issues](docs/roulette-callbacks.md).
 
 To uninstall, double-click `Uninstall.command` while the game is closed. This
+also removes the generated `CoDBlkOps3_Exe_mawlicious`. This
 restores the launcher backed up before the first install; if the original
 BO3MacFix's stock launcher backup is present, that is used as the baseline.
 Logs and mod files are retained. Reinstalling preserves the baseline backup.

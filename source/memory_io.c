@@ -1,4 +1,5 @@
 #include "memory_io.h"
+#include "patch_layer.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,7 +43,7 @@ int bo3_install_memory_io(uint64_t base) {
     /* This call is made immediately after opening the descriptor, before
      * the FILE is exposed to any read or seek. Fail closed on other builds. */
     static const unsigned char expected[] = {0xe8, 0xa4, 0xb6, 0x51, 0x01};
-    if (memcmp((const void *)(base + 0x10be0f), expected, sizeof(expected)))
+    if (bo3_orig_memcmp((const void *)(base + 0x10be0f), expected, sizeof(expected)))
         return -1;
     archive_open_return = base + 0x10be14;
     return 1;

@@ -121,6 +121,13 @@ int DobbyCodePatch(void *address, uint8_t *buffer, uint32_t buffer_size);
 // function inline hook
 int DobbyHook(void *address, void *fake_func, void **out_origin_func);
 
+#if defined(BO3_USE_PATCH_LAYER) && !defined(BO3_PATCH_LAYER_IMPL)
+/* Keep Rosetta's AOT translation: see source/patch_layer.c. */
+#include "patch_layer.h"
+#define DobbyHook bo3_hook
+#define DobbyCodePatch bo3_code_patch
+#endif
+
 // dynamic binary instruction instrument
 // for Arm64, can't access q8 - q31, unless enable full floating-point register pack
 typedef void (*dobby_instrument_callback_t)(void *address, DobbyRegisterContext *ctx);

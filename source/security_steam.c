@@ -1,4 +1,5 @@
 #include "security.h"
+#include "patch_layer.h"
 #include "steam.h"
 #include "utilities.h"
 #include <string.h>
@@ -61,8 +62,8 @@ int bo3_install_security_steam(uint64_t base,void *matchmaking,void *networking)
     static const unsigned char session_bytes[]={0x55,0x48,0x89,0xe5,0x41,0x56,0x53,0x41,0x89,0xfe,0xe8,0xa6,0xff,0xff,0xff};
     static const unsigned char member_bytes[]={0x55,0x48,0x89,0xe5,0x48,0x81,0xc7,0xf8,0x00,0x00,0x00};
     if (!matchmaking || !networking ||
-        memcmp((void *)(uintptr_t)(base+0x1362cdf),session_bytes,sizeof(session_bytes)) ||
-        memcmp((void *)(uintptr_t)(base+0x12b33aa),member_bytes,sizeof(member_bytes))) return -1;
+        bo3_orig_memcmp((void *)(uintptr_t)(base+0x1362cdf),session_bytes,sizeof(session_bytes)) ||
+        bo3_orig_memcmp((void *)(uintptr_t)(base+0x12b33aa),member_bytes,sizeof(member_bytes))) return -1;
     client_session=(void *)(uintptr_t)(base+0x1362cdf);
     find_member=(void *)(uintptr_t)(base+0x12b33aa);
     void **mm=*(void ***)matchmaking, **net=*(void ***)networking;
