@@ -1,4 +1,5 @@
 #include <_stdio.h>
+#include "patch_layer.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +30,8 @@
 #include "stats_sync.h"
 #include "security.h"
 #include "memory_io.h"
+#include "perf_telemetry.h"
+#include "cpu_sched.h"
 #include "dobby.h"
 #include "utilities.h"
 #include "offsets.h"
@@ -327,7 +330,7 @@ static void network_version_patch() {
         int o = 0;
         bool found = false;
         for (o = 0; o < 16; o++)  {
-            if (memcmp((void *)(game_base_address + netver_addresses[i] + o), &original_network_version, sizeof(uint16_t)) == 0) {
+            if (bo3_orig_memcmp((void *)(game_base_address + netver_addresses[i] + o), &original_network_version, sizeof(uint16_t)) == 0) {
                 found = true;
                 break;
             }
@@ -351,7 +354,7 @@ static void network_version_patch() {
         int o = 0;
         bool found = false;
         for (o = 0; o < 16; o++)  {
-            if (memcmp((void *)(game_base_address + tuver_addresses[i] + o), original_tuver, sizeof(original_tuver) - 1) == 0) {
+            if (bo3_orig_memcmp((void *)(game_base_address + tuver_addresses[i] + o), original_tuver, sizeof(original_tuver) - 1) == 0) {
                 found = true;
                 break;
             }
@@ -626,7 +629,7 @@ __attribute__((constructor)) static void dylib_main() {
     // don't want to inject into defaults, Aspyr launcher or Steamwebhelper
     const char *image_path = _dyld_get_image_name(0);
     const char *image_name = filename_from_path(image_path);
-    if (strcmp(image_name, "CoDBlkOps3_Exe") != 0)
+    if (strcmp(image_name, "CoDBlkOps3_Exe") != 0 && strcmp(image_name, "CoDBlkOps3_Exe_mawlicious") != 0)
         return;
 
     // Keep the session log useful even if the game crashes before exit.
@@ -639,6 +642,14 @@ __attribute__((constructor)) static void dylib_main() {
     int memory_io = bo3_install_memory_io(game_base_address);
     printf(Version_Prefix " Asset stream buffer optimization: %s (%d).\n",
            memory_io == 1 ? "enabled" : "skipped", memory_io);
+
+    int perf_log = bo3_install_perf_telemetry();
+    printf(Version_Prefix " Frame-time telemetry: %s (%d).\n",
+           perf_log == 1 ? "enabled" : "off", perf_log);
+
+    int event_wait = bo3_install_event_wait_fix(game_base_address);
+    printf(Version_Prefix " Event wait spin fix: JQ workers %s, main render wait %s (%d).\n",
+           event_wait > 0 && (event_wait & 1) ? "on" : "off", event_wait > 0 && (event_wait & 2) ? "on" : "off", event_wait);
 
     int timeout_patch = install_lobby_info_timeout(game_base_address);
     if (timeout_patch == 1)
@@ -725,6 +736,15 @@ __attribute__((constructor)) static void dylib_main() {
 
     // patches the network version to match Windows
     network_version_patch();
+
+    unsigned baked_hooks = 0, baked_code = 0, fallbacks = 0;
+    int patch_mode = bo3_patch_layer_status(&baked_hooks, &baked_code, &fallbacks);
+    if (patch_mode == 1)
+        printf(Version_Prefix " Rosetta AOT preserved: static executable, %u hooks + %u patches baked, %u runtime fallbacks.\n",
+               baked_hooks, baked_code, fallbacks);
+    else
+        printf(Version_Prefix " Runtime patching (original executable): Rosetta runs the game via JIT. "
+               "Use the launcher's static executable for full speed.\n");
 
 
     // i'll figure all that stuff out later :')

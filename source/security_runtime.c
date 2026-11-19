@@ -1,4 +1,5 @@
 #include "security.h"
+#include "patch_layer.h"
 #include "dobby.h"
 #include <stdatomic.h>
 #include <stdio.h>
@@ -117,18 +118,18 @@ int bo3_install_security(uint64_t base) {
     static const uint8_t scalar[] = {0x48,0x89,0xf0,0x8b,0x4f,0x40,0x85,0xc9,0x74};
     static const uint8_t caller[] = {0x44,0x89,0xff,0x4c,0x89,0xee,0xe8,0x6e,0xfb,0xff,0xff,0x84,0xc0};
     static const uint8_t tls_lookup[] = {0xe8,0x0e,0xd0,0xee,0xff,0x48,0x8b,0x40,0x18,0x48,0x63,0x08};
-    if (memcmp((void *)(uintptr_t)(base+0xe19016),cmd,sizeof(cmd)) ||
-        memcmp((void *)(uintptr_t)(base+0xe1949d),caller,sizeof(caller)) ||
-        memcmp((void *)(uintptr_t)(base+0xe1903c),tls_lookup,sizeof(tls_lookup)) ||
-        memcmp((void *)(uintptr_t)(base+0xf41d33),scalar,sizeof(scalar)) ||
-        memcmp((void *)(uintptr_t)(base+0xf41db0),scalar,sizeof(scalar))) return -1;
+    if (bo3_orig_memcmp((void *)(uintptr_t)(base+0xe19016),cmd,sizeof(cmd)) ||
+        bo3_orig_memcmp((void *)(uintptr_t)(base+0xe1949d),caller,sizeof(caller)) ||
+        bo3_orig_memcmp((void *)(uintptr_t)(base+0xe1903c),tls_lookup,sizeof(tls_lookup)) ||
+        bo3_orig_memcmp((void *)(uintptr_t)(base+0xf41d33),scalar,sizeof(scalar)) ||
+        bo3_orig_memcmp((void *)(uintptr_t)(base+0xf41db0),scalar,sizeof(scalar))) return -1;
     /* UChar wrapper uses exactly the same dispatch convention, with uint8_t. */
     static const uint8_t uchar[] = {0x48,0x89,0xf0,0x8b,0x4f,0x40,0x85,0xc9,0x74};
-    if (memcmp((void *)(uintptr_t)(base+0xf41fc0),uchar,sizeof(uchar))) return -1;
+    if (bo3_orig_memcmp((void *)(uintptr_t)(base+0xf41fc0),uchar,sizeof(uchar))) return -1;
     static const uint8_t element[] = {0x55,0x48,0x89,0xe5,0x53,0x50,0x48,0x89,0xfb,0x8b,0x43,0x40};
-    if (memcmp((void *)(uintptr_t)(base+0xf4246d),element,sizeof(element))) return -1;
+    if (bo3_orig_memcmp((void *)(uintptr_t)(base+0xf4246d),element,sizeof(element))) return -1;
     static const unsigned char array[]={0x55,0x48,0x89,0xe5,0x41,0x56,0x53,0x49,0x89,0xf6,0x48,0x89,0xfb,0x8b,0x43,0x40,0x85,0xc0,0x74,0x17};
-    if (memcmp((void *)(uintptr_t)(base+0xf423e3),array,sizeof(array))) return -1;
+    if (bo3_orig_memcmp((void *)(uintptr_t)(base+0xf423e3),array,sizeof(array))) return -1;
     image = base;
     engine_tls = (void *)(uintptr_t)(base + 0xd0604f);
     int installed = 0;

@@ -1,4 +1,5 @@
 #include "stats_sync.h"
+#include "patch_layer.h"
 #include <string.h>
 
 static bool decimal(const uint8_t *data, size_t size, size_t *cursor, uint64_t *out) {
@@ -50,7 +51,7 @@ int bo3_stats_sync_supported(uint64_t base) {
         0x4c,0x8b,0x25,0x53,0xab,0x71,0x10,0x44,0x89,0xff,
         0xe8,0x0c,0x4c,0x09,0x00,0x4c,0x69,0xad,0x78,0xf7,0xff,0xff,0x80,0x57,0x02,0x00
     };
-    return memcmp((const void *)(uintptr_t)(base + 0xe19402), entry, sizeof(entry)) == 0 &&
-           memcmp((const void *)(uintptr_t)(base + 0xe19ae2), stores, sizeof(stores)) == 0 &&
-           memcmp((const void *)(uintptr_t)(base + 0xe19a46), connection_lookup, sizeof(connection_lookup)) == 0;
+    return bo3_orig_memcmp((const void *)(uintptr_t)(base + 0xe19402), entry, sizeof(entry)) == 0 &&
+           bo3_orig_memcmp((const void *)(uintptr_t)(base + 0xe19ae2), stores, sizeof(stores)) == 0 &&
+           bo3_orig_memcmp((const void *)(uintptr_t)(base + 0xe19a46), connection_lookup, sizeof(connection_lookup)) == 0;
 }
