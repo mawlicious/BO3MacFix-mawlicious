@@ -19,6 +19,8 @@
 #include <sys/resource.h>
 #include <time.h>
 #include "perf_telemetry.h"
+#include "metal_stats.h"
+#include "cpu_sched.h"
 #include "versioninfo.h"
 #define Version_Prefix "[BO3MacFix-mawlicious " MACFIX_VERSION "]"
 
@@ -79,6 +81,15 @@ static void report_locked(uint64_t t) {
 }
 
 static id hooked_nextDrawable(id self, SEL cmd) {
+    static __thread int promoted;
+    if (!promoted) {
+        promoted = 1;
+        int r = bo3_promote_current_thread();
+        char name[64] = "";
+        pthread_getname_np(pthread_self(), name, sizeof(name));
+        if (r != -1) printf(Version_Prefix " Presenting thread '%s' QoS promotion: %d.\n", name, r);
+    }
+    bo3_metal_stats_frame();
     uint64_t start = now_ns();
     id drawable = ((id (*)(id, SEL))orig_nextDrawable)(self, cmd);
     uint64_t end = now_ns();

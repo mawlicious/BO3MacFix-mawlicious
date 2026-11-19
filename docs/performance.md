@@ -84,6 +84,28 @@ mutex at ~70–84% CPU per worker, with ~20% kernel time, even in menus.
   game output. `BO3MACFIX_PERFLOG=0` disables it; `BO3MACFIX_PERFLOG_INTERVAL`
   sets the interval in seconds.
 
+### 3. Device-context lock spun 100,000 times before sleeping
+
+Aspyr's D3D11 device-context lock (`0x4e580`, 211 call sites) retries
+`pthread_mutex_trylock` with no pause up to a per-context limit before it
+falls back to `pthread_mutex_lock`. The limit is set to 100,000 at
+`0x2aa63`. Under Rosetta a contending thread burns its core, and the lock's
+cache line, for milliseconds. The limit is now 0, so the lock is a plain
+blocking `pthread_mutex_lock` with the same locking semantics.
+`BO3MACFIX_LOCKSPIN=1` keeps Aspyr's spinning under the original executable.
+
+An alternating 8-run test in Shadows of Evil (windowed, spawn, mean of two
+10 s windows per run) measured:
+
+| Lock spin limit | Run 1 | Run 2 |
+| --- | --- | --- |
+| 100,000 (Aspyr) | 81.9 FPS | 88.4 FPS |
+| 2,000 | 89.5 FPS | 89.0 FPS |
+| 0 (shipped) | 90.3 FPS | 93.2 FPS |
+
+Run-to-run variance between sessions is about ±5%, so only differences
+that repeat across alternating runs are treated as real.
+
 ## Results
 
 Through the installed launcher, fullscreen, Shadows of Evil solo, standing at
@@ -106,6 +128,26 @@ thermal behaviour was not measured.
 The Metal performance HUD (`MTL_HUD_ENABLED=1`) loads x86 interposers that
 add substantial render-thread cost under Rosetta and change presentation, so
 it was not used for these numbers.
+
+## Investigated, not shipped
+
+* **Thread QoS** (`BO3MACFIX_QOS=1`, experiment). The main, job-queue and
+  D3D11 render threads are promoted to `USER_INTERACTIVE`. The render thread
+  is recognised as the one creating render encoders. Results were 91.6 and
+  75.9 FPS against 81.9 and 88.4 FPS, which is inconsistent, so it stays off.
+* **Redundant Metal state.** `BO3MACFIX_METALSTATS=1` logs per-frame Metal
+  calls (diagnostic; it adds overhead). Per frame in Shadows of Evil there
+  are about 2,280 draws, 10 render encoders, 570 pipeline binds, 2,630 vertex
+  buffer binds, 2,730 vertex buffer offset updates, 3,870 fragment texture
+  binds and 645 fragment sampler binds. Only about 5% of binds repeat
+  already-bound state, so filtering them would save at most about 2% of
+  render-thread time.
+* **Display sleep.** The game already holds an SDL
+  `PreventUserIdleDisplaySleep` assertion; no change needed.
+* Smaller render-path candidates found by decompiling Aspyr's draw path:
+  skipping the per-draw autorelease pool on the encoder fast path
+  (`0x31fd6`, ~0.5%), caching vertex step modes (`0x46447`, 1–2%), and
+  memoising the last pipeline-state key (`0x3725e`, ≤1.5%).
 
 ## What limits FPS now
 

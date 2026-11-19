@@ -66,5 +66,50 @@ int bo3_install_event_wait_fix(uint64_t base) {
         if (r < 0) return r;
         result |= 2;
     }
+    if (env_flag("BO3MACFIX_LOCKSPIN", 0) == 0) {
+        /* Aspyr's device-context lock (0x4e580) retries pthread_mutex_trylock
+         * up to ctx->spin times, with no pause, before blocking; the limit is
+         * initialised to 100000 at 0x2aa63. Under Rosetta a contending thread
+         * burns its core (and the lock's cache line) for milliseconds. A
+         * limit of 0 makes it a plain pthread_mutex_lock: same locking
+         * semantics, blocking waits. Measured in Shadows of Evil: ~+7% FPS.
+         * BO3MACFIX_LOCKSPIN=1 keeps Aspyr's spinning. */
+        static const uint8_t init[] = {0xc7, 0x83, 0x80, 0x00, 0x00, 0x00, 0xa0, 0x86, 0x01, 0x00};
+        static const uint8_t lock_fn[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x56, 0x53, 0x49, 0x89, 0xfe,
+                                          0x41, 0x8b, 0x5e, 0x40, 0x85, 0xdb, 0x74, 0x10};
+        if (bo3_orig_memcmp((const void *)(uintptr_t)(base + 0x2aa63), init, sizeof(init)) ||
+            bo3_orig_memcmp((const void *)(uintptr_t)(base + 0x4e580), lock_fn, sizeof(lock_fn)))
+            return -3;
+        uint8_t zero[4] = {0, 0, 0, 0};
+        if (DobbyCodePatch((void *)(uintptr_t)(base + 0x2aa69), zero, sizeof(zero)) != 0) return -4;
+        result |= 4;
+    }
     return result;
 }
+
+/* Experiment (BO3MACFIX_QOS=1): ask the scheduler to keep the frame-critical
+ * threads on performance cores. Thread names are set by the game through
+ * pthread_setname_np (an import, so interposing it leaves the game's code
+ * and Rosetta's AOT translation untouched). The render thread is recognised
+ * by its first CAMetalLayer nextDrawable call (perf_telemetry.m). */
+#include <pthread.h>
+#include <pthread/qos.h>
+#include "dyld-interposing.h"
+
+int bo3_qos_enabled(void) {
+    static int enabled = -1;
+    if (enabled < 0) enabled = env_flag("BO3MACFIX_QOS", 0);
+    return enabled;
+}
+
+int bo3_promote_current_thread(void) {
+    return bo3_qos_enabled() ? pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0) : -1;
+}
+
+static int bo3_pthread_setname_np(const char *name) {
+    int r = pthread_setname_np(name);
+    if (name && (!strcmp(name, "Main") || !strncmp(name, "JQ Worker", 9)))
+        bo3_promote_current_thread();
+    return r;
+}
+DYLD_INTERPOSE(bo3_pthread_setname_np, pthread_setname_np)
