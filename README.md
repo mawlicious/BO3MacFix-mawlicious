@@ -34,7 +34,9 @@ Performance: the launcher runs a pre-patched copy of the game executable
 (`CoDBlkOps3_Exe_mawlicious`, built locally from your own copy on first
 launch) so Rosetta keeps its ahead-of-time translation, and idle job-queue
 threads no longer busy-spin. Measured in Shadows of Evil on an M4: ~+6% FPS
-with ~16% less CPU; menus use less than half the CPU. Session logs include
+with ~16% less CPU; menus use less than half the CPU. BC-compressed 3D textures (reflection
+probe volumes) stay compressed on the GPU instead of being decoded on the
+CPU, which removes multi-second freezes in Shadows of Evil. Session logs include
 frame-time statistics. [Details and measurements](docs/performance.md).
 Set `BO3MACFIX_STATIC=0` to run the original executable instead. To record
 where the game is stuck during freezes, create an empty file named

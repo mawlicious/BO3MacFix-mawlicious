@@ -32,6 +32,7 @@
 #include "memory_io.h"
 #include "perf_telemetry.h"
 #include "cpu_sched.h"
+#include "texture_fix.h"
 #include "metal_stats.h"
 #include "dobby.h"
 #include "utilities.h"
@@ -658,6 +659,9 @@ __attribute__((constructor)) static void dylib_main() {
     printf(Version_Prefix " Spin fixes: JQ worker wait %s, render idle wait %s, main render wait %s, context lock spin %s (%d).\n",
            event_wait > 0 && (event_wait & 1) ? "on" : "off", event_wait > 0 && (event_wait & 8) ? "on" : "off",
            event_wait > 0 && (event_wait & 2) ? "on" : "off", event_wait > 0 && (event_wait & 4) ? "removed" : "kept", event_wait);
+
+    int bc3d = bo3_install_bc3d_fix(game_base_address);
+    printf(Version_Prefix " BC 3D textures: %s (%d).\n", bc3d == 1 ? "native" : "Aspyr CPU decode", bc3d);
 
     int timeout_patch = install_lobby_info_timeout(game_base_address);
     if (timeout_patch == 1)
